@@ -3,8 +3,10 @@ package com.employee.employeeservice.infrastructure.persistence;
 import com.employee.employeeservice.application.port.out.EmployeeRepository;
 import com.employee.employeeservice.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.Optional;
 
 @Repository
@@ -23,6 +25,13 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
     @Override
     public Optional<Employee> findById(long id) {
         return jpaRepository.findById(id).map(this::toDomain);
+    }
+
+    @Override
+    public List<Employee> findAll() {
+        return jpaRepository.findAll(Sort.by("id").ascending()).stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     private EmployeeEntity toEntity(Employee employee) {
