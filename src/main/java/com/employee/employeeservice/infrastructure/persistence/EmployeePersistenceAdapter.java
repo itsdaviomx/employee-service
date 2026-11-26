@@ -5,6 +5,8 @@ import com.employee.employeeservice.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Repository;
 
+import java.util.Optional;
+
 @Repository
 @RequiredArgsConstructor
 public class EmployeePersistenceAdapter implements EmployeeRepository {
@@ -16,6 +18,11 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
         EmployeeEntity entity = toEntity(employee);
         EmployeeEntity savedEntity = jpaRepository.save(entity);
         return toDomain(savedEntity);
+    }
+
+    @Override
+    public Optional<Employee> findById(long id) {
+        return jpaRepository.findById(id).map(this::toDomain);
     }
 
     private EmployeeEntity toEntity(Employee employee) {
