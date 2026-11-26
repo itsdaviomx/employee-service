@@ -8,8 +8,11 @@ import javax.validation.constraints.NotNull;
 import javax.validation.constraints.PastOrPresent;
 import javax.validation.constraints.PositiveOrZero;
 import java.time.LocalDate;
+import java.util.UUID;
 
 public record CreateEmployeeRequest(
+
+        UUID requestId,
 
         @NotBlank
         String firstName,

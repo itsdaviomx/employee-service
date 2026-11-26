@@ -11,12 +11,22 @@ public record EmployeeCreationResult(
 ) {
     public enum Status {
         CREATED,
+        REPLAYED,
+        CONFLICT,
         INVALID,
         PERSISTENCE_ERROR
     }
 
     public static EmployeeCreationResult created(int position, EmployeeResponse employee) {
         return new EmployeeCreationResult(position, Status.CREATED, employee, null);
+    }
+
+    public static EmployeeCreationResult replayed(int position, EmployeeResponse employee) {
+        return new EmployeeCreationResult(position, Status.REPLAYED, employee, null);
+    }
+
+    public static EmployeeCreationResult conflict(int position, String error) {
+        return new EmployeeCreationResult(position, Status.CONFLICT, null, error);
     }
 
     public static EmployeeCreationResult invalid(int position, String error) {

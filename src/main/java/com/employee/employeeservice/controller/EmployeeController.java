@@ -1,11 +1,9 @@
 package com.employee.employeeservice.controller;
 
-import com.employee.employeeservice.application.service.CreateEmployeeService;
-import com.employee.employeeservice.domain.model.Employee;
+import com.employee.employeeservice.infrastructure.idempotency.IdempotentEmployeeCreator;
 import com.employee.employeeservice.dto.CreateEmployeeRequest;
 import com.employee.employeeservice.dto.CreateEmployeesRequest;
 import com.employee.employeeservice.dto.EmployeeCreationResult;
-import com.employee.employeeservice.dto.EmployeeResponse;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -32,7 +30,7 @@ import java.util.stream.Collectors;
 @RequiredArgsConstructor
 public class EmployeeController {
 
-    private final CreateEmployeeService createEmployeeService;
+    private final IdempotentEmployeeCreator creator;
     private final ObjectMapper objectMapper;
     private final Validator validator;
 
@@ -79,8 +77,13 @@ public class EmployeeController {
         }
 
         try {
-            Employee saved = createEmployeeService.execute(request.toCommand());
-            return EmployeeCreationResult.created(position, EmployeeResponse.from(saved));
+            var outcome = creator.create(request.requestId(), request.toCommand());
+            if (outcome.replayed()) {
+                return EmployeeCreationResult.replayed(position, outcome.employee());
+            }
+            return EmployeeCreationResult.created(position, outcome.employee());
+        } catch (IdempotentEmployeeCreator.RequestIdConflict exception) {
+            return EmployeeCreationResult.conflict(position, exception.getMessage());
         } catch (IllegalArgumentException exception) {
             return EmployeeCreationResult.invalid(position, exception.getMessage());
         } catch (DataAccessException | TransactionException exception) {
