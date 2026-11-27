@@ -44,3 +44,6 @@ build/
 
 ### Logs ###
 logs/
+
+### Evidence recordings (the original is too large for Git; docs/evidence keeps the 720p export) ###
+docs/evidence/*.mov

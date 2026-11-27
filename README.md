@@ -390,4 +390,79 @@ git log --oneline --graph --first-parent develop
 
 ## Evidencias
 
-Las capturas y grabaciones de funcionamiento están en [`docs/evidence/`](docs/evidence/).
+Todo el material está en [`docs/evidence/`](docs/evidence/). Las capturas salen del video de demostración, grabado sobre la rama `develop` con el servicio en local.
+
+### Video de demostración
+
+[`employee-service-demo-720p.mp4`](docs/evidence/employee-service-demo-720p.mp4): 9 minutos, 720p, con narración en español (unos 42 MB).
+
+| Minuto | Contenido |
+|---|---|
+| 0:00 | Presentación, README y ejecución de las 119 pruebas |
+| 1:00 | Health check: readiness en `DOWN` con MySQL detenido y en `UP` al arrancarlo |
+| 1:36 | Swagger UI |
+| 2:00 | Contenedores con Docker Compose |
+| 2:15 | Seguridad: `401` sin credenciales y autenticación con *Authorize* |
+| 3:00 | Alta por lotes (`201`) e idempotencia (`REPLAYED`) |
+| 4:30 | Consulta por ID (`404` y `200`) y búsqueda parcial |
+| 5:30 | Lote con un elemento inválido |
+| 6:30 | Actualización parcial y validaciones (`400`) |
+| 8:15 | Eliminación (`204`) y `404` posterior |
+| 9:00 | Cierre |
+
+> **Credenciales:** en algunas peticiones, el comando `curl` que genera Swagger muestra la cabecera `Authorization`. Eran credenciales de demostración local y se cambiaron después de grabar, así que ya no sirven. Las capturas están recortadas para no mostrarla.
+
+### Capturas
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <img src="docs/evidence/01-tests-119.png" alt="Ejecución de Maven en IntelliJ: 119 pruebas sin fallas">
+      <br><b>Pruebas:</b> 119 pruebas, 0 fallas y 0 errores (<code>BUILD SUCCESS</code>).
+    </td>
+    <td width="50%" valign="top">
+      <img src="docs/evidence/04-swagger-ui.png" alt="Swagger UI con los seis endpoints de empleados">
+      <br><b>OpenAPI:</b> Swagger UI con los seis endpoints, protegidos con HTTP Basic.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="docs/evidence/02-readiness-down.png" alt="Readiness en DOWN con MySQL detenido">
+      <br><b>Readiness sin base:</b> con MySQL detenido, <code>/actuator/health/readiness</code> responde <code>DOWN</code>.
+    </td>
+    <td valign="top">
+      <img src="docs/evidence/03-readiness-up.png" alt="Readiness en UP después de arrancar MySQL">
+      <br><b>Readiness con base:</b> al arrancar MySQL, vuelve a <code>UP</code>.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="docs/evidence/05-docker-containers.png" alt="Docker Desktop con los contenedores mysql y app">
+      <br><b>Docker Compose:</b> los contenedores <code>mysql</code> y <code>app</code> del proyecto en ejecución.
+    </td>
+    <td valign="top">
+      <img src="docs/evidence/06-unauthorized-401.png" alt="GET /employees sin credenciales responde 401">
+      <br><b>Seguridad:</b> <code>GET /employees</code> sin credenciales responde <code>401 UNAUTHORIZED</code>, con el formato de error de la API.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="docs/evidence/07-batch-created-201.png" alt="Alta por lotes con respuesta 201">
+      <br><b>Alta por lotes:</b> <code>POST /employees</code> responde <code>201</code> con el resultado de cada elemento.
+    </td>
+    <td valign="top">
+      <img src="docs/evidence/08-retry-replayed.png" alt="Reintento con el mismo requestId: REPLAYED con el mismo ID">
+      <br><b>Idempotencia:</b> el reintento con el mismo <code>requestId</code> responde <code>200</code> y <code>REPLAYED</code>, con el mismo ID y sin duplicar.
+    </td>
+  </tr>
+  <tr>
+    <td valign="top">
+      <img src="docs/evidence/09-put-invalid-age-400.png" alt="PUT con una edad incongruente responde 400 INVALID_EMPLOYEE">
+      <br><b>Regla de dominio:</b> un <code>PUT</code> con una edad que no coincide con la fecha de nacimiento responde <code>400 INVALID_EMPLOYEE</code>.
+    </td>
+    <td valign="top">
+      <img src="docs/evidence/10-delete-204.png" alt="DELETE responde 204 con la cabecera x-correlation-id">
+      <br><b>Baja:</b> <code>DELETE</code> responde <code>204</code> sin cuerpo; la respuesta incluye <code>x-correlation-id</code>.
+    </td>
+  </tr>
+</table>
