@@ -356,7 +356,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
 
 ## CI/CD
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) se ejecuta en cada push a `main`, `develop` y `feature/**`, y en cada pull request hacia `main` y `develop`:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) se ejecuta en cada push a `main`, `develop`, `feature/**`, `release/**` y `hotfix/**`, y en cada pull request hacia `main` y `develop`:
 
 1. **`build-test`:**
    - levanta un MySQL 8.4 desechable y crea el esquema con los scripts versionados;
@@ -366,7 +366,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
 
 ## Git Flow
 
-- **Ramas:** `main` (releases), `develop` (integración) y una rama `feature/*` por funcionalidad, integrada con `git merge --no-ff`.
+- **Ramas:** `main` (releases, con una etiqueta `vX.Y.Z` por versión), `develop` (integración), una rama `feature/*` por funcionalidad, y `release/*` y `hotfix/*` para preparar o corregir una versión. Todas se integran con `git merge --no-ff`.
 - **Commits atómicos:** cada uno agrupa un solo cambio, con [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `refactor`, `build`, `ci`, `docs`, `chore`).
 
 ```bash
