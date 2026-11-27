@@ -2,6 +2,7 @@ package com.employee.employeeservice.controller;
 
 import com.employee.employeeservice.application.port.in.UpdateEmployeeCommand;
 import com.employee.employeeservice.application.service.UpdateEmployeeService;
+import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -12,6 +13,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
@@ -49,6 +51,16 @@ class EmployeeUpdateIntegrationTest extends EmployeeBatchHttpSupport {
                 .andExpect(jsonPath("$.error").value("INVALID_EMPLOYEE"));
 
         assertThat(fetch(id).path("firstName").asText()).isEqualTo("Ana");
+    }
+
+    @Test
+    void shouldSurfaceTheDomainErrorAlthoughItIsRaisedInsideTheRowLockTransaction() throws Exception {
+        long id = createAna();
+
+        // The rule runs inside EmployeePersistenceAdapter (@Repository); it must not become a data access error.
+        assertThatThrownBy(() -> updateService.execute(id, new UpdateEmployeeCommand(
+                null, null, null, null, null, null, 1, null, null)))
+                .isExactlyInstanceOf(InvalidEmployeeException.class);
     }
 
     @Test

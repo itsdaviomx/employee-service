@@ -280,13 +280,13 @@ npx newman@6.2.1 run docs/postman/employee-service.postman_collection.json \
 mvn -B verify
 ```
 
-Son **101 pruebas** con JUnit 5:
+Son **102 pruebas** con JUnit 5:
 
 | Tipo | Pruebas | Qué cubren | Necesita MySQL |
 |---|---|---|---|
 | Unitarias (JUnit 5 y Mockito) | 37 | Reglas del dominio, cada caso de uso con el puerto simulado, el filtro de logging, la caducidad de los recibos, su purga por lotes y la configuración de usuarios | No |
 | Web (`@WebMvcTest`) | 35 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
-| Integración (`@SpringBootTest`, `@DataJpaTest`) | 29 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
+| Integración (`@SpringBootTest`, `@DataJpaTest`) | 30 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
 
 Las pruebas de integración usan una marca única en `jobTitle` y borran sus datos al terminar, así que pueden correr contra la base de desarrollo. En CI corren contra un MySQL desechable con `JPA_DDL_AUTO=validate`.
 
