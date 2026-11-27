@@ -47,6 +47,11 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
                 .toList();
     }
 
+    @Override
+    public boolean deleteById(long id) {
+        return jpaRepository.deleteEmployeeById(id) > 0;
+    }
+
     private static String containsPattern(String text) {
         String literal = text.toLowerCase(Locale.ROOT)
                 .replace(LIKE_ESCAPE, LIKE_ESCAPE + LIKE_ESCAPE)

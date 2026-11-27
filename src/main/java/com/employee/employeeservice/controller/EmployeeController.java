@@ -1,5 +1,6 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.application.service.DeleteEmployeeService;
 import com.employee.employeeservice.infrastructure.idempotency.IdempotentEmployeeCreator;
 import com.employee.employeeservice.dto.CreateEmployeeRequest;
 import com.employee.employeeservice.dto.CreateEmployeesRequest;
@@ -13,9 +14,12 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionException;
+import org.springframework.web.bind.annotation.DeleteMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
@@ -33,6 +37,7 @@ public class EmployeeController {
     private final IdempotentEmployeeCreator creator;
     private final ObjectMapper objectMapper;
     private final Validator validator;
+    private final DeleteEmployeeService deleteEmployeeService;
 
     @PostMapping
     public ResponseEntity<List<EmployeeCreationResult>> create(
@@ -50,6 +55,12 @@ public class EmployeeController {
 
         return ResponseEntity.status(allCreated ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(results);
+    }
+
+    @DeleteMapping("/{id}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void delete(@PathVariable("id") long id) {
+        deleteEmployeeService.execute(id);
     }
 
     private EmployeeCreationResult createOne(int position, JsonNode item) {

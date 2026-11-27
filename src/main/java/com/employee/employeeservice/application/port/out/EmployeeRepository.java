@@ -14,4 +14,6 @@ public interface EmployeeRepository {
     List<Employee> findAll();
 
     List<Employee> searchByName(String name);
+
+    boolean deleteById(long id);
 }
