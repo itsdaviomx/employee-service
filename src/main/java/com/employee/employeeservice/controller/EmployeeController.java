@@ -25,6 +25,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -71,7 +72,8 @@ public class EmployeeController {
     @ApiResponse(responseCode = "503", description = "Database unavailable for every item",
             content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = EmployeeCreationResult.class))))
-    @PostMapping
+    @ApiResponse(responseCode = "406", description = "The client must accept JSON", content = @Content)
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<EmployeeCreationResult>> create(
             @Valid @RequestBody CreateEmployeesRequest request
     ) {
@@ -113,7 +115,8 @@ public class EmployeeController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "Concurrent modification; retry the request",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @PutMapping("/{id}")
+    @ApiResponse(responseCode = "406", description = "The client must accept JSON", content = @Content)
+    @PutMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public EmployeeResponse update(
             @PathVariable("id") long id,
             @Valid @RequestBody UpdateEmployeeRequest request
