@@ -12,4 +12,6 @@ public interface EmployeeRepository {
     Optional<Employee> findById(long id);
 
     List<Employee> findAll();
+
+    List<Employee> searchByName(String name);
 }

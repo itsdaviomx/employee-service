@@ -2,6 +2,7 @@ package com.employee.employeeservice.controller;
 
 import com.employee.employeeservice.application.service.GetEmployeeService;
 import com.employee.employeeservice.application.service.ListEmployeesService;
+import com.employee.employeeservice.application.service.SearchEmployeesService;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -26,6 +27,9 @@ class EmployeeListWebTest {
 
     @MockBean
     private ListEmployeesService listEmployeesService;
+
+    @MockBean
+    private SearchEmployeesService searchEmployeesService;
 
     @Test
     void shouldReturnAnEmptyArrayWhenThereAreNoEmployees() throws Exception {
