@@ -120,7 +120,6 @@ cp .env.example .env
 | `API_ADMIN_PASSWORD` / `API_READER_PASSWORD` | — | **Obligatorias.** Si faltan o están en blanco, la aplicación no arranca |
 | `LOG_LEVEL` / `SQL_LOG_LEVEL` | `INFO` / `WARN` | Nivel de log de la aplicación y de las consultas SQL |
 | `LOG_FILE` | `logs/employee-service.log` | Vacío = solo salida estándar |
-| `BATCH_WRITE_TIMEOUT` | `10s` | Tiempo total de espera por las escrituras de un lote |
 | `API_DOCS_ENABLED` | `true` | `false` oculta Swagger y `/v3/api-docs` |
 
 Usa contraseñas sin `$`, `\` ni comillas: Docker Compose y Spring leen el mismo `.env` y tratan esos caracteres de forma distinta.
@@ -217,9 +216,9 @@ curl -i -u "$API_ADMIN_USER:$API_ADMIN_PASSWORD" -H 'Content-Type: application/j
 Se admiten de 1 a 100 empleados y hasta 1 MiB (1 048 576 bytes) de JSON por petición. Un lote mayor se rechaza completo antes de procesar empleados. Dentro de esos límites, cada elemento se valida y se guarda por separado. La respuesta informa el resultado de cada uno, en el orden en que llegaron:
 
 - Cada posición devuelve `CREATED`, `REPLAYED`, `CONFLICT`, `INVALID`, `PERSISTENCE_ERROR` o `NOT_ATTEMPTED`.
-- Al agotarse el plazo del lote se devuelven las posiciones confirmadas. Una escritura en curso queda como `PERSISTENCE_ERROR` y todavía puede confirmarse en MySQL. Para reintentar de forma segura, utiliza el `requestId` del intento original.
-- Una posición válida que no llegó a iniciar una escritura recibe `NOT_ATTEMPTED` y se puede reintentar. Esto también ocurre si los ocho trabajadores están ocupados. La espera por una conexión y por la conexión de red está configurada en dos segundos, y la espera de lectura del driver en cinco segundos.
-- **Código HTTP:** `201` cuando se crean todos. Si todas las posiciones fallan por indisponibilidad de la base, falta de trabajadores o vencimiento del plazo, se devuelve `503` con los resultados por posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
+- Si MySQL deja de responder, el lote se detiene en esa posición. Esa escritura queda como `PERSISTENCE_ERROR`, porque no se pudo confirmar. Las posiciones válidas siguientes reciben `NOT_ATTEMPTED` sin intentar escribir; las inválidas se siguen reportando como `INVALID`. Obtener o abrir una conexión espera como máximo dos segundos, así que una caída no hace esperar al cliente por cada empleado.
+- Para reintentar de forma segura una posición `PERSISTENCE_ERROR` o `NOT_ATTEMPTED`, utiliza el `requestId` del intento original.
+- **Código HTTP:** `201` cuando se crean todos. Si la base no responde y no se crea ningún empleado, se devuelve `503` con los resultados por posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
 - **`requestId` (opcional):** protege los reintentos durante 24 horas desde el alta confirmada.
   - el mismo `requestId` con los mismos datos devuelve `REPLAYED` con el empleado original y no crea un duplicado;
   - con datos distintos dentro de la ventana, devuelve `CONFLICT`.
@@ -304,12 +303,12 @@ npx newman@6.2.1 run docs/postman/employee-service.postman_collection.json \
 mvn -B verify
 ```
 
-Son **122 pruebas** con JUnit 5:
+Son **119 pruebas** con JUnit 5:
 
 | Tipo | Pruebas | Qué cubren | Necesita MySQL |
 |---|---|---|---|
-| Unitarias (JUnit 5 y Mockito) | 45 | Reglas del dominio, servicios de escritura y búsqueda, validación previa a persistir, plazo del lote, logging, recibos de idempotencia y usuarios | No |
-| Web (`@WebMvcTest`) | 46 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
+| Unitarias (JUnit 5 y Mockito) | 43 | Reglas del dominio, servicios de escritura y búsqueda, validación previa a persistir, logging, recibos de idempotencia y usuarios | No |
+| Web (`@WebMvcTest`) | 45 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
 | Integración (`@SpringBootTest`, `@DataJpaTest`) | 31 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
 
 Las pruebas de integración usan una marca única en `jobTitle` y borran sus datos al terminar, así que pueden correr contra la base de desarrollo. En CI corren contra un MySQL desechable con `JPA_DDL_AUTO=validate`.
