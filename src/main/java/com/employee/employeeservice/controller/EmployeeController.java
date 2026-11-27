@@ -25,6 +25,7 @@ import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.DeleteMapping;
@@ -60,7 +61,9 @@ public class EmployeeController {
     @Operation(
             summary = "Create one or more employees",
             description = "Each item is validated and saved on its own and the response reports every item by position. "
-                    + "Send up to 100 items per request (1 MiB total). A requestId protects retries for 24 hours."
+                    + "Send up to 100 items per request (1 MiB total). A requestId protects retries for 24 hours. "
+                    + "If the database becomes unreachable, the batch stops: that item is PERSISTENCE_ERROR "
+                    + "(outcome unconfirmed) and the following valid items are NOT_ATTEMPTED."
     )
     @ApiResponse(responseCode = "201", description = "Every employee was created")
     @ApiResponse(responseCode = "200", description = "Some items were not created; check each item's status")
@@ -68,25 +71,33 @@ public class EmployeeController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "413", description = "Request body exceeds 1 MiB",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @ApiResponse(responseCode = "503", description = "Database unavailable for every item",
+    @ApiResponse(responseCode = "503", description = "The database was unreachable and no employee was created",
             content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = EmployeeCreationResult.class))))
-    @PostMapping
+    @ApiResponse(responseCode = "406", description = "The client must accept JSON", content = @Content)
+    @PostMapping(produces = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<List<EmployeeCreationResult>> create(
             @Valid @RequestBody CreateEmployeesRequest request
     ) {
         List<EmployeeCreationResult> results = new ArrayList<>();
 
+        boolean databaseUnreachable = false;
         int unavailable = 0;
         for (int index = 0; index < request.employees().size(); index++) {
             JsonNode item = request.employees().get(index);
             int position = index + 1;
             try {
-                results.add(createOne(position, item));
+                EmployeeCreationResult result = createOne(position, item, !databaseUnreachable);
+                if (result.status() == EmployeeCreationResult.Status.NOT_ATTEMPTED) {
+                    unavailable++;
+                }
+                results.add(result);
             } catch (DataAccessException | TransactionException exception) {
                 log.error("Persistence failure for employee at batch position {}", position, exception);
                 if (isDatabaseUnavailable(exception)) {
                     unavailable++;
+                    // The next items would wait for the same outage: stop writing, keep validating.
+                    databaseUnreachable = true;
                 }
                 results.add(EmployeeCreationResult.persistenceError(position));
             }
@@ -113,7 +124,8 @@ public class EmployeeController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "409", description = "Concurrent modification; retry the request",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @PutMapping("/{id}")
+    @ApiResponse(responseCode = "406", description = "The client must accept JSON", content = @Content)
+    @PutMapping(value = "/{id}", produces = MediaType.APPLICATION_JSON_VALUE)
     public EmployeeResponse update(
             @PathVariable("id") long id,
             @Valid @RequestBody UpdateEmployeeRequest request
@@ -135,7 +147,7 @@ public class EmployeeController {
         deleteEmployeeService.execute(id);
     }
 
-    private EmployeeCreationResult createOne(int position, JsonNode item) {
+    private EmployeeCreationResult createOne(int position, JsonNode item, boolean writesAllowed) {
         if (item == null || !item.isObject()) {
             return EmployeeCreationResult.invalid(position, "Employee must be a JSON object");
         }
@@ -157,6 +169,10 @@ public class EmployeeController {
 
         if (!validationErrors.isEmpty()) {
             return EmployeeCreationResult.invalid(position, validationErrors);
+        }
+
+        if (!writesAllowed) {
+            return EmployeeCreationResult.notAttempted(position);
         }
 
         try {

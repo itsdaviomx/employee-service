@@ -92,6 +92,43 @@ class EmployeeInputWebTest {
         update(json.createObjectNode().put(field, atLimit)).andExpect(status().isOk());
     }
 
+    @Test
+    void rejectsUnacceptableResponseMediaBeforeEitherWrite() throws Exception {
+        var batch = json.createObjectNode();
+        batch.putArray("employees").add(employee());
+        mvc.perform(post("/employees").accept("text/csv").contentType(MediaType.APPLICATION_JSON)
+                        .content(json.writeValueAsBytes(batch)))
+                .andExpect(status().isNotAcceptable());
+        mvc.perform(put("/employees/7").accept("text/csv").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"active\":false}"))
+                .andExpect(status().isNotAcceptable());
+        verifyNoInteractions(creator, updateService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"age\":-0.5}", "{\"active\":2}"})
+    void rejectsIncorrectScalarTypesAndContinuesTheBatch(String fields) throws Exception {
+        ObjectNode invalidFields = (ObjectNode) json.readTree(fields);
+        ObjectNode invalidEmployee = employee();
+        invalidEmployee.setAll(invalidFields);
+        postBatch(invalidEmployee, employee())
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].status").value("INVALID"))
+                .andExpect(jsonPath("$[1].status").value("CREATED"));
+        verify(creator).create(isNull(), any());
+        update(invalidFields).andExpect(status().isBadRequest());
+        verifyNoInteractions(updateService);
+    }
+
+    @ParameterizedTest
+    @ValueSource(strings = {"{\"active\":false} {\"active\":true}", "{\"fristName\":\"Eva\"}"})
+    void rejectsInvalidUpdateDocumentsBeforeSaving(String body) throws Exception {
+        mvc.perform(put("/employees/7").contentType(MediaType.APPLICATION_JSON).content(body))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("MALFORMED_REQUEST"));
+        verifyNoInteractions(updateService);
+    }
+
     private ObjectNode employee() {
         return json.createObjectNode().put("firstName", "Ana").put("paternalLastName", "Garcia")
                 .put("sex", "F").put("birthDate", "14-03-1995").put("jobTitle", "Developer").put("active", true);

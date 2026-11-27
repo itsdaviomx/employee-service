@@ -64,7 +64,7 @@ class SearchEmployeesServiceTest {
 
     @Test
     void shouldAcceptANameAtTheMaximumLength() {
-        String name = "a".repeat(SearchEmployeesService.MAX_NAME_LENGTH);
+        String name = "𠮷".repeat(SearchEmployeesService.MAX_NAME_LENGTH);
         when(employeeRepository.searchByName(name)).thenReturn(List.of());
 
         assertThat(service.execute(name)).isEmpty();
@@ -72,7 +72,7 @@ class SearchEmployeesServiceTest {
 
     @Test
     void shouldRejectANameLongerThanTheMaximumWithoutQuerying() {
-        String name = "a".repeat(SearchEmployeesService.MAX_NAME_LENGTH + 1);
+        String name = "𠮷".repeat(SearchEmployeesService.MAX_NAME_LENGTH + 1);
 
         assertThatThrownBy(() -> service.execute(name))
                 .isInstanceOf(InvalidSearchTermException.class);

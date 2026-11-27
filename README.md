@@ -29,8 +29,8 @@ Microservicio REST para gestionar empleados: alta individual o por lotes, consul
 | `GET` | `/employees` | Todos los empleados, activos e inactivos, ordenados por ID | `READER` o `ADMIN` | `200` |
 | `GET` | `/employees/{id}` | Detalle de un empleado | `READER` o `ADMIN` | `200`, `400`, `404` |
 | `GET` | `/employees/search?name={name}` | Búsqueda parcial en cualquiera de los cuatro campos de nombre, sin distinguir mayúsculas | `READER` o `ADMIN` | `200`, `400` |
-| `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400`, `413`, `503` |
-| `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404`, `409` |
+| `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400`, `406`, `413`, `503` |
+| `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404`, `406`, `409` |
 | `DELETE` | `/employees/{id}` | Elimina un empleado | `ADMIN` | `204`, `400`, `404`, `409` |
 
 Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/readiness` (públicos), Swagger UI en `/swagger-ui.html` y el contrato OpenAPI en `/v3/api-docs`.
@@ -44,12 +44,12 @@ Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/rea
 | `middleName` | texto | Opcional |
 | `paternalLastName` | texto | Obligatorio |
 | `maternalLastName` | texto | Opcional |
-| `age` | número | Se calcula desde `birthDate`. Si el cliente lo envía, debe coincidir |
+| `age` | entero JSON | Se calcula desde `birthDate`. Si el cliente lo envía, debe coincidir |
 | `sex` | texto | Obligatorio |
 | `birthDate` | `dd-MM-yyyy` | Obligatorio, no puede ser futura |
 | `jobTitle` | texto | Obligatorio |
-| `createdAt` | fecha y hora ISO-8601 | Automático al dar de alta; no se modifica |
-| `active` | booleano | Obligatorio en el alta |
+| `createdAt` | fecha y hora local ISO-8601, sin desplazamiento UTC | Lo asigna el servidor al dar de alta. Ejemplo: `2026-01-15T10:30:00.123456` |
+| `active` | booleano JSON (`true` o `false`) | Obligatorio en el alta |
 
 Los seis campos de texto admiten hasta 255 caracteres Unicode cada uno. Una fecha imposible, por ejemplo `29-02-2023`, se rechaza; `29-02-2024` sí es válida. En un alta por lote el error corresponde solo a ese elemento.
 
@@ -140,6 +140,23 @@ GRANT ALL PRIVILEGES ON employee_service.* TO 'employee_app'@'localhost';
 cat src/main/resources/db/mysql/*.sql | mysql -h 127.0.0.1 -u employee_app -p employee_service
 ```
 
+En bases existentes, `CREATE TABLE IF NOT EXISTS` conserva las columnas actuales. Para adoptar la restricción de campos obligatorios, consulta primero las filas que necesitan corrección:
+
+```sql
+SELECT id FROM employees
+WHERE first_name IS NULL OR paternal_last_name IS NULL OR sex IS NULL OR job_title IS NULL;
+```
+
+Completa los datos de esos empleados por ID mediante `PUT /employees/{id}`. Cuando la consulta devuelva cero filas y el servicio actualizado gestione las escrituras, aplica:
+
+```sql
+ALTER TABLE employees
+    MODIFY first_name VARCHAR(255) NOT NULL,
+    MODIFY paternal_last_name VARCHAR(255) NOT NULL,
+    MODIFY sex VARCHAR(255) NOT NULL,
+    MODIFY job_title VARCHAR(255) NOT NULL;
+```
+
 En bases creadas con la versión anterior, la purga funciona con la tabla existente. Para indexar el vencimiento en esas instalaciones, comprueba si existe `ix_receipts_created_at` con `SHOW INDEX FROM employee_creation_receipts`. Si falta, añádelo una vez con `CREATE INDEX ix_receipts_created_at ON employee_creation_receipts (created_at)`.
 
 **3. Completa el `.env`** con `DB_PASSWORD`, `API_ADMIN_PASSWORD` y `API_READER_PASSWORD`.
@@ -198,8 +215,10 @@ curl -i -u "$API_ADMIN_USER:$API_ADMIN_PASSWORD" -H 'Content-Type: application/j
 
 Se admiten de 1 a 100 empleados y hasta 1 MiB (1 048 576 bytes) de JSON por petición. Un lote mayor se rechaza completo antes de procesar empleados. Dentro de esos límites, cada elemento se valida y se guarda por separado. La respuesta informa el resultado de cada uno, en el orden en que llegaron:
 
-- **Estados posibles de cada elemento:** `CREATED`, `REPLAYED`, `CONFLICT`, `INVALID` o `PERSISTENCE_ERROR`.
-- **Código HTTP:** `201` cuando se crean todos. Si la conexión a la base falla para todos, se devuelve `503` con el resultado de cada posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
+- Cada posición devuelve `CREATED`, `REPLAYED`, `CONFLICT`, `INVALID`, `PERSISTENCE_ERROR` o `NOT_ATTEMPTED`.
+- Si MySQL deja de responder, el lote se detiene en esa posición. Esa escritura queda como `PERSISTENCE_ERROR`, porque no se pudo confirmar. Las posiciones válidas siguientes reciben `NOT_ATTEMPTED` sin intentar escribir; las inválidas se siguen reportando como `INVALID`. Obtener o abrir una conexión espera como máximo dos segundos, así que una caída no hace esperar al cliente por cada empleado.
+- Para reintentar de forma segura una posición `PERSISTENCE_ERROR` o `NOT_ATTEMPTED`, utiliza el `requestId` del intento original.
+- **Código HTTP:** `201` cuando se crean todos. Si la base no responde y no se crea ningún empleado, se devuelve `503` con los resultados por posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
 - **`requestId` (opcional):** protege los reintentos durante 24 horas desde el alta confirmada.
   - el mismo `requestId` con los mismos datos devuelve `REPLAYED` con el empleado original y no crea un duplicado;
   - con datos distintos dentro de la ventana, devuelve `CONFLICT`.
@@ -224,7 +243,7 @@ curl -i -u "$API_READER_USER:$API_READER_PASSWORD" http://localhost:8080/employe
 curl -i -u "$API_READER_USER:$API_READER_PASSWORD" 'http://localhost:8080/employees/search?name=gar'
 ```
 
-**Actualización parcial:** los campos omitidos o `null` conservan su valor; `id` y `createdAt` nunca cambian.
+El `PUT` acepta un solo objeto JSON con campos de actualización conocidos. Los campos omitidos o `null` conservan su valor. Una propiedad desconocida o contenido después del objeto produce `400` antes de guardar.
 
 ```bash
 curl -i -u "$API_ADMIN_USER:$API_ADMIN_PASSWORD" -X PUT -H 'Content-Type: application/json' \
@@ -262,7 +281,7 @@ Todos los errores tienen el mismo formato:
 | `415` | `UNSUPPORTED_MEDIA_TYPE` | El cuerpo no es JSON; la cabecera `Accept` indica los tipos válidos |
 | `500` | `INTERNAL_ERROR` | Error inesperado. La respuesta no da detalles; el log lo registra con el `X-Correlation-Id` |
 
-En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás. La única excepción al formato es `406`: si el cliente pide un tipo distinto de JSON en `Accept`, la API no puede responderle con JSON.
+En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás. Si el cliente excluye JSON en `Accept`, el alta y la actualización devuelven `406` antes de escribir.
 
 ## Documentación de la API
 
@@ -284,13 +303,13 @@ npx newman@6.2.1 run docs/postman/employee-service.postman_collection.json \
 mvn -B verify
 ```
 
-Son **106 pruebas** con JUnit 5:
+Son **119 pruebas** con JUnit 5:
 
 | Tipo | Pruebas | Qué cubren | Necesita MySQL |
 |---|---|---|---|
-| Unitarias (JUnit 5 y Mockito) | 37 | Reglas del dominio, cada caso de uso con el puerto simulado, el filtro de logging, la caducidad de los recibos, su purga por lotes y la configuración de usuarios | No |
-| Web (`@WebMvcTest`) | 39 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
-| Integración (`@SpringBootTest`, `@DataJpaTest`) | 30 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
+| Unitarias (JUnit 5 y Mockito) | 43 | Reglas del dominio, servicios de escritura y búsqueda, validación previa a persistir, logging, recibos de idempotencia y usuarios | No |
+| Web (`@WebMvcTest`) | 45 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
+| Integración (`@SpringBootTest`, `@DataJpaTest`) | 31 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
 
 Las pruebas de integración usan una marca única en `jobTitle` y borran sus datos al terminar, así que pueden correr contra la base de desarrollo. En CI corren contra un MySQL desechable con `JPA_DDL_AUTO=validate`.
 

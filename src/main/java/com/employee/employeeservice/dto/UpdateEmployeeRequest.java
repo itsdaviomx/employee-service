@@ -1,6 +1,8 @@
 package com.employee.employeeservice.dto;
 
 import com.employee.employeeservice.application.port.in.UpdateEmployeeCommand;
+import com.fasterxml.jackson.annotation.JsonAnySetter;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
 import org.hibernate.validator.constraints.CodePointLength;
@@ -10,7 +12,7 @@ import javax.validation.constraints.Pattern;
 import javax.validation.constraints.PositiveOrZero;
 import java.time.LocalDate;
 
-import static com.employee.employeeservice.dto.EmployeeFieldLimits.MAX_TEXT_LENGTH;
+import static com.employee.employeeservice.domain.model.Employee.MAX_TEXT_LENGTH;
 
 public record UpdateEmployeeRequest(
 
@@ -58,6 +60,11 @@ public record UpdateEmployeeRequest(
     // @NotBlank would reject null, which here means "keep the current value".
     static final String NOT_BLANK = "(?s).*\\S.*";
     static final String BLANK_MESSAGE = "must not be blank";
+
+    @JsonAnySetter
+    private void rejectUnknownField(String field, JsonNode value) {
+        throw new IllegalArgumentException("Unknown employee update field: " + field);
+    }
 
     public UpdateEmployeeCommand toCommand() {
         return new UpdateEmployeeCommand(

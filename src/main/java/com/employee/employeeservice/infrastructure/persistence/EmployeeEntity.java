@@ -25,24 +25,25 @@ public class EmployeeEntity {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(name = "first_name")
+    @Column(name = "first_name", nullable = false)
     private String firstName;
 
     @Column(name = "middle_name")
     private String middleName;
 
-    @Column(name = "paternal_last_name")
+    @Column(name = "paternal_last_name", nullable = false)
     private String paternalLastName;
 
     @Column(name = "maternal_last_name")
     private String maternalLastName;
 
+    @Column(nullable = false)
     private String sex;
 
     @Column(name = "birth_date", nullable = false)
     private LocalDate birthDate;
 
-    @Column(name = "job_title")
+    @Column(name = "job_title", nullable = false)
     private String jobTitle;
 
     @Column(name = "created_at", nullable = false, updatable = false)

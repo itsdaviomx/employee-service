@@ -20,6 +20,9 @@ public record EmployeeResponse(
         @Schema(type = "string", pattern = ApiDateFormat.REGEX, example = ApiDateFormat.EXAMPLE)
         LocalDate birthDate,
         String jobTitle,
+        @Schema(implementation = String.class, description = "Server-local ISO date and time without a UTC offset",
+                pattern = "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d{1,9})?$",
+                example = "2026-01-15T10:30:00.123456")
         LocalDateTime createdAt,
         boolean active
 ) {

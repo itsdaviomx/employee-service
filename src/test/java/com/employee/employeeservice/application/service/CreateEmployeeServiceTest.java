@@ -85,6 +85,18 @@ class CreateEmployeeServiceTest {
         assertSame(savedEmployee, result);
     }
 
+    @ParameterizedTest
+    @ValueSource(strings = {"firstName", "paternalLastName", "sex", "jobTitle"})
+    void shouldRejectMissingRequiredTextWithoutAnHttpAdapter(String field) {
+        CreateEmployeeCommand command = new CreateEmployeeCommand(
+                field.equals("firstName") ? null : "Ana", null, field.equals("paternalLastName") ? " " : "Ruiz",
+                null, field.equals("sex") ? null : "F", LocalDate.of(1995, 3, 14), null,
+                field.equals("jobTitle") ? " " : "Engineer", true);
+        InvalidEmployeeException error = assertThrows(InvalidEmployeeException.class, () -> service.execute(command));
+        assertEquals(field + " must not be blank", error.getMessage());
+        verifyNoInteractions(employeeRepository);
+    }
+
     private CreateEmployeeCommand createCommand(LocalDate birthDate, Integer declaredAge) {
         return new CreateEmployeeCommand(
                 "Ana",
