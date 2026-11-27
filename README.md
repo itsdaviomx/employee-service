@@ -265,7 +265,7 @@ En el alta por lotes, los errores de cada elemento van dentro de su resultado y 
 - **Swagger UI:** http://localhost:8080/swagger-ui.html. El botón **Authorize** acepta las credenciales de HTTP Basic.
 - **Contrato OpenAPI 3:** http://localhost:8080/v3/api-docs.
 - **Colección de Postman:** [docs/postman/employee-service.postman_collection.json](docs/postman/employee-service.postman_collection.json).
-  - **Contenido:** 25 peticiones con 55 aserciones, en 6 carpetas que se ejecutan en orden: health, alta, consulta, actualización, seguridad y limpieza. La última carpeta borra lo que crea la corrida.
+  - **Contenido:** 25 peticiones con 55 aserciones, en 6 carpetas que se ejecutan en orden: health, alta, consulta, actualización, seguridad y limpieza. La última carpeta elimina los empleados creados por esa corrida y comprueba los casos de ID ausente con un ID recién eliminado.
   - **Contraseñas:** captúralas en *Current value* de las variables `adminPassword` y `readerPassword`; la colección no las guarda.
   - **Ejecución desde la terminal:**
 
