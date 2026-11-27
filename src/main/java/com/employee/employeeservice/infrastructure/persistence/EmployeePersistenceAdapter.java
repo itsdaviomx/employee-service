@@ -7,11 +7,17 @@ import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 
 @Repository
 @RequiredArgsConstructor
 public class EmployeePersistenceAdapter implements EmployeeRepository {
+
+    // Must match the ESCAPE '!' clause in SpringDataEmployeeRepository.
+    private static final String LIKE_ESCAPE = "!";
+    private static final String LIKE_ANY = "%";
+    private static final String LIKE_SINGLE = "_";
 
     private final SpringDataEmployeeRepository jpaRepository;
 
@@ -32,6 +38,21 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
         return jpaRepository.findAll(Sort.by("id").ascending()).stream()
                 .map(this::toDomain)
                 .toList();
+    }
+
+    @Override
+    public List<Employee> searchByName(String name) {
+        return jpaRepository.searchByNamePattern(containsPattern(name)).stream()
+                .map(this::toDomain)
+                .toList();
+    }
+
+    private static String containsPattern(String text) {
+        String literal = text.toLowerCase(Locale.ROOT)
+                .replace(LIKE_ESCAPE, LIKE_ESCAPE + LIKE_ESCAPE)
+                .replace(LIKE_ANY, LIKE_ESCAPE + LIKE_ANY)
+                .replace(LIKE_SINGLE, LIKE_ESCAPE + LIKE_SINGLE);
+        return LIKE_ANY + literal + LIKE_ANY;
     }
 
     private EmployeeEntity toEntity(Employee employee) {
