@@ -51,6 +51,8 @@ Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/rea
 | `createdAt` | fecha y hora ISO-8601 | Automático al dar de alta; no se modifica |
 | `active` | booleano | Obligatorio en el alta |
 
+Los seis campos de texto admiten hasta 255 caracteres Unicode cada uno. Una fecha imposible, por ejemplo `29-02-2023`, se rechaza; `29-02-2024` sí es válida. En un alta por lote el error corresponde solo a ese elemento.
+
 ## Arquitectura
 
 Arquitectura hexagonal (puertos y adaptadores). El dominio y los casos de uso no dependen de Spring Web, de JPA ni de Spring Security. Lombok sí se usa en esas capas, pero solo actúa al compilar.
