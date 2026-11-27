@@ -140,6 +140,8 @@ GRANT ALL PRIVILEGES ON employee_service.* TO 'employee_app'@'localhost';
 cat src/main/resources/db/mysql/*.sql | mysql -h 127.0.0.1 -u employee_app -p employee_service
 ```
 
+En bases creadas con la versión anterior, la purga funciona con la tabla existente. Para indexar el vencimiento en esas instalaciones, comprueba si existe `ix_receipts_created_at` con `SHOW INDEX FROM employee_creation_receipts`. Si falta, añádelo una vez con `CREATE INDEX ix_receipts_created_at ON employee_creation_receipts (created_at)`.
+
 **3. Completa el `.env`** con `DB_PASSWORD`, `API_ADMIN_PASSWORD` y `API_READER_PASSWORD`.
 
 **4. Compila, prueba y arranca:**
@@ -198,9 +200,11 @@ Se admiten de 1 a 100 empleados y hasta 1 MiB (1 048 576 bytes) de JSON por peti
 
 - **Estados posibles de cada elemento:** `CREATED`, `REPLAYED`, `CONFLICT`, `INVALID` o `PERSISTENCE_ERROR`.
 - **Código HTTP:** `201` cuando se crean todos. Si la conexión a la base falla para todos, se devuelve `503` con el resultado de cada posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
-- **`requestId` (opcional):** hace seguro reintentar.
+- **`requestId` (opcional):** protege los reintentos durante 24 horas desde el alta confirmada.
   - el mismo `requestId` con los mismos datos devuelve `REPLAYED` con el empleado original y no crea un duplicado;
-  - con datos distintos, devuelve `CONFLICT`.
+  - con datos distintos dentro de la ventana, devuelve `CONFLICT`.
+  - si se elimina el empleado, un reintento idéntico dentro de la ventana devuelve la respuesta original y el empleado sigue eliminado. Al vencer las 24 horas, la clave vuelve a estar disponible. Reenviar el alta puede crear otro ID, incluso si el anterior sigue existiendo.
+  - el servicio elimina los recibos vencidos al iniciar y luego cada hora, en bloques de 500. La caducidad de la clave se comprueba también al recibir el reintento, aunque la purga física siga pendiente.
 
 Los ejemplos siguientes usan el `id` del primer empleado de esa respuesta. Guárdalo en la terminal; por ejemplo, si la respuesta trae `"id":27`:
 
@@ -349,7 +353,7 @@ git log --oneline --graph --first-parent develop
 ## Decisiones y limitaciones
 
 - **La edad no se guarda:** se calcula desde `birthDate`. Guardarla la dejaría desactualizada cada año.
-- **Alta por lotes con resultado por elemento:** un elemento inválido no rechaza a los demás. El `requestId` hace seguros los reintentos, incluso con peticiones simultáneas.
+- **Alta por lotes con resultado por elemento:** un elemento inválido no rechaza a los demás. El `requestId` protege los reintentos durante 24 horas, incluso con peticiones simultáneas.
 - **`PUT` parcial:** el enunciado pide actualizar "todos o algunos" campos con `PUT`. Como `null` significa "conservar", el segundo nombre y el apellido materno no se pueden borrar. En una API propia usaría `PATCH` con JSON Merge Patch (RFC 7396).
 - **Actualizaciones concurrentes:** cada `PUT` bloquea la fila por ID en MySQL, lee sus valores vigentes y aplica el cambio en la misma transacción. Dos peticiones que tocan campos distintos conservan ambos cambios. Para un mismo campo prevalece la última escritura completada. Un conflicto de bloqueo devuelve `409`.
 - **Spring Boot 2.7 sin soporte:** la versión la pide el enunciado. Por eso el escaneo de Trivy solo reporta: una migración a Spring Boot 3 permitiría hacerlo bloqueante.

@@ -14,6 +14,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 @Sql("/db/mysql/001_employee_creation_receipts.sql")
@@ -67,6 +69,23 @@ class EmployeeIdempotencyTest extends EmployeeBatchHttpSupport {
         assertThat(replay.get("status").asText()).isEqualTo("REPLAYED");
         assertThat(replay.get("employee")).isEqualTo(original);
         assertThat(employeeCount()).isEqualTo(1);
+    }
+
+    @Test
+    void retryAfterDeleteReplaysUntilExpiryThenCreatesANewEmployee() throws Exception {
+        var ana = employee("Ana").put("requestId", keyA);
+        var original = submit(201, ana).get(0).get("employee");
+        long originalId = original.get("id").asLong();
+        mvc.perform(delete("/employees/{id}", originalId)).andExpect(status().isNoContent());
+        assertThat(submit(200, ana).get(0).get("employee")).isEqualTo(original);
+        assertThat(employeeCount()).isZero();
+
+        // Leave the expired row present to exercise retry before the next scheduled purge.
+        jdbc.update("UPDATE employee_creation_receipts SET created_at = NOW(6) - INTERVAL 24 HOUR WHERE request_id = ?", keyA);
+        var replacement = submit(201, ana).get(0).get("employee");
+        assertThat(replacement.get("id").asLong()).isNotEqualTo(originalId);
+        assertThat(submit(200, ana).get(0).get("employee")).isEqualTo(replacement);
+        assertThat(employeeCount()).isOne();
     }
 
     @Test
