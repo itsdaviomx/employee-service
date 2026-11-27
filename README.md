@@ -141,6 +141,23 @@ GRANT ALL PRIVILEGES ON employee_service.* TO 'employee_app'@'localhost';
 cat src/main/resources/db/mysql/*.sql | mysql -h 127.0.0.1 -u employee_app -p employee_service
 ```
 
+En bases existentes, `CREATE TABLE IF NOT EXISTS` conserva las columnas actuales. Para adoptar la restricción de campos obligatorios, consulta primero las filas que necesitan corrección:
+
+```sql
+SELECT id FROM employees
+WHERE first_name IS NULL OR paternal_last_name IS NULL OR sex IS NULL OR job_title IS NULL;
+```
+
+Completa los datos de esos empleados por ID mediante `PUT /employees/{id}`. Cuando la consulta devuelva cero filas y el servicio actualizado gestione las escrituras, aplica:
+
+```sql
+ALTER TABLE employees
+    MODIFY first_name VARCHAR(255) NOT NULL,
+    MODIFY paternal_last_name VARCHAR(255) NOT NULL,
+    MODIFY sex VARCHAR(255) NOT NULL,
+    MODIFY job_title VARCHAR(255) NOT NULL;
+```
+
 En bases creadas con la versión anterior, la purga funciona con la tabla existente. Para indexar el vencimiento en esas instalaciones, comprueba si existe `ix_receipts_created_at` con `SHOW INDEX FROM employee_creation_receipts`. Si falta, añádelo una vez con `CREATE INDEX ix_receipts_created_at ON employee_creation_receipts (created_at)`.
 
 **3. Completa el `.env`** con `DB_PASSWORD`, `API_ADMIN_PASSWORD` y `API_READER_PASSWORD`.
@@ -287,11 +304,11 @@ npx newman@6.2.1 run docs/postman/employee-service.postman_collection.json \
 mvn -B verify
 ```
 
-Son **121 pruebas** con JUnit 5:
+Son **122 pruebas** con JUnit 5:
 
 | Tipo | Pruebas | Qué cubren | Necesita MySQL |
 |---|---|---|---|
-| Unitarias (JUnit 5 y Mockito) | 44 | Reglas del dominio, servicios de escritura y búsqueda, plazo del lote, logging, recibos de idempotencia y usuarios | No |
+| Unitarias (JUnit 5 y Mockito) | 45 | Reglas del dominio, servicios de escritura y búsqueda, validación previa a persistir, plazo del lote, logging, recibos de idempotencia y usuarios | No |
 | Web (`@WebMvcTest`) | 46 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
 | Integración (`@SpringBootTest`, `@DataJpaTest`) | 31 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
 

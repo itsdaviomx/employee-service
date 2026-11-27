@@ -5,11 +5,11 @@ CREATE TABLE IF NOT EXISTS employees (
     active             BIT          NOT NULL,
     birth_date         DATE         NOT NULL,
     created_at         DATETIME(6)  NOT NULL,
-    first_name         VARCHAR(255),
-    job_title          VARCHAR(255),
+    first_name         VARCHAR(255) NOT NULL,
+    job_title          VARCHAR(255) NOT NULL,
     maternal_last_name VARCHAR(255),
     middle_name        VARCHAR(255),
-    paternal_last_name VARCHAR(255),
-    sex                VARCHAR(255),
+    paternal_last_name VARCHAR(255) NOT NULL,
+    sex                VARCHAR(255) NOT NULL,
     PRIMARY KEY (id)
 ) ENGINE=InnoDB;

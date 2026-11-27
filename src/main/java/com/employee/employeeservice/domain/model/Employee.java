@@ -50,9 +50,6 @@ public final class Employee {
     private Employee(Long id, String firstName, String middleName, String paternalLastName, String maternalLastName,
                      String sex, LocalDate birthDate, String jobTitle, LocalDateTime createdAt, boolean active,
                      boolean validateText) {
-        if (validateText) {
-            validateTextFields(firstName, middleName, paternalLastName, maternalLastName, sex, jobTitle);
-        }
         if (birthDate == null) {
             throw new InvalidEmployeeException("Birth date is required");
         }
@@ -71,10 +68,12 @@ public final class Employee {
         this.jobTitle = jobTitle;
         this.createdAt = createdAt;
         this.active = active;
+        if (validateText) {
+            validateForWrite();
+        }
     }
 
-    private static void validateTextFields(String firstName, String middleName, String paternalLastName,
-                                           String maternalLastName, String sex, String jobTitle) {
+    public void validateForWrite() {
         validateText("firstName", firstName, true);
         validateText("middleName", middleName, false);
         validateText("paternalLastName", paternalLastName, true);

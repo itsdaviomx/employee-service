@@ -25,6 +25,7 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
 
     @Override
     public Employee save(Employee employee) {
+        employee.validateForWrite();
         EmployeeEntity entity = toEntity(employee);
         EmployeeEntity savedEntity = jpaRepository.save(entity);
         return toDomain(savedEntity);
