@@ -1,5 +1,6 @@
 package com.employee.employeeservice.domain.model;
 
+import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import org.junit.jupiter.api.Test;
 
 import java.time.LocalDate;
@@ -13,14 +14,14 @@ class EmployeeTest {
 
     @Test
     void shouldRejectMissingBirthDate() {
-        assertThrows(IllegalArgumentException.class, () -> employeeBornOn(null));
+        assertThrows(InvalidEmployeeException.class, () -> employeeBornOn(null));
     }
 
     @Test
     void shouldRejectFutureBirthDate() {
         LocalDate tomorrow = LocalDate.now().plusDays(1);
 
-        assertThrows(IllegalArgumentException.class, () -> employeeBornOn(tomorrow));
+        assertThrows(InvalidEmployeeException.class, () -> employeeBornOn(tomorrow));
     }
 
     @Test
@@ -45,7 +46,7 @@ class EmployeeTest {
         Employee employee = employeeBornOn(LocalDate.now());
 
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidEmployeeException.class,
                 () -> employee.validateDeclaredAge(-1)
         );
     }
@@ -55,7 +56,7 @@ class EmployeeTest {
         Employee employee = employeeBornOn(LocalDate.now());
 
         assertThrows(
-                IllegalArgumentException.class,
+                InvalidEmployeeException.class,
                 () -> employee.validateDeclaredAge(1)
         );
     }
