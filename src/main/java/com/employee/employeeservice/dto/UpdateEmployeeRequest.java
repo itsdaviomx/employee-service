@@ -2,6 +2,7 @@ package com.employee.employeeservice.dto;
 
 import com.employee.employeeservice.application.port.in.UpdateEmployeeCommand;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import javax.validation.constraints.PastOrPresent;
 import javax.validation.constraints.Pattern;
@@ -20,6 +21,7 @@ public record UpdateEmployeeRequest(
 
         String maternalLastName,
 
+        @Schema(description = "Optional; when sent it must match the resulting birth date")
         @PositiveOrZero
         Integer age,
 
@@ -27,7 +29,8 @@ public record UpdateEmployeeRequest(
         String sex,
 
         @PastOrPresent
-        @JsonFormat(pattern = "dd-MM-yyyy")
+        @JsonFormat(pattern = ApiDateFormat.PATTERN)
+        @Schema(type = "string", pattern = ApiDateFormat.REGEX, example = ApiDateFormat.EXAMPLE)
         LocalDate birthDate,
 
         @Pattern(regexp = UpdateEmployeeRequest.NOT_BLANK, message = UpdateEmployeeRequest.BLANK_MESSAGE)

@@ -7,10 +7,16 @@ import com.employee.employeeservice.dto.CreateEmployeeRequest;
 import com.employee.employeeservice.dto.CreateEmployeesRequest;
 import com.employee.employeeservice.dto.EmployeeCreationResult;
 import com.employee.employeeservice.dto.EmployeeResponse;
+import com.employee.employeeservice.dto.ErrorResponse;
 import com.employee.employeeservice.dto.UpdateEmployeeRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.Content;
+import io.swagger.v3.oas.annotations.media.Schema;
+import io.swagger.v3.oas.annotations.responses.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
@@ -33,6 +39,7 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @Slf4j
+@Tag(name = "Employees")
 @RestController
 @RequestMapping("/employees")
 @RequiredArgsConstructor
@@ -44,6 +51,15 @@ public class EmployeeController {
     private final DeleteEmployeeService deleteEmployeeService;
     private final UpdateEmployeeService updateEmployeeService;
 
+    @Operation(
+            summary = "Create one or more employees",
+            description = "Each item is validated and saved on its own and the response reports every item by position. "
+                    + "Send a client-generated requestId per item to make retries safe."
+    )
+    @ApiResponse(responseCode = "201", description = "Every employee was created")
+    @ApiResponse(responseCode = "200", description = "Some items were not created; check each item's status")
+    @ApiResponse(responseCode = "400", description = "Empty list or unreadable body",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @PostMapping
     public ResponseEntity<List<EmployeeCreationResult>> create(
             @Valid @RequestBody CreateEmployeesRequest request
@@ -62,6 +78,15 @@ public class EmployeeController {
                 .body(results);
     }
 
+    @Operation(
+            summary = "Update all or some fields of an employee",
+            description = "Omitted or null fields keep their current value. ID and creation date never change."
+    )
+    @ApiResponse(responseCode = "200", description = "Employee updated")
+    @ApiResponse(responseCode = "400", description = "Invalid field, wrong date format or age that does not match",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Employee not found",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @PutMapping("/{id}")
     public EmployeeResponse update(
             @PathVariable("id") long id,
@@ -70,6 +95,12 @@ public class EmployeeController {
         return EmployeeResponse.from(updateEmployeeService.execute(id, request.toCommand()));
     }
 
+    @Operation(summary = "Delete an employee by ID")
+    @ApiResponse(responseCode = "204", description = "Employee deleted")
+    @ApiResponse(responseCode = "400", description = "ID is not a number",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "404", description = "Employee not found",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(@PathVariable("id") long id) {
