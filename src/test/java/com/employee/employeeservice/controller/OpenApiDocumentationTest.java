@@ -66,5 +66,9 @@ class OpenApiDocumentationTest {
         mvc.perform(get("/swagger-ui.html"))
                 .andExpect(status().is3xxRedirection())
                 .andExpect(redirectedUrl("/swagger-ui/index.html"));
+
+        // Static resource mappings are disabled; the UI must still be served by springdoc.
+        mvc.perform(get("/swagger-ui/index.html"))
+                .andExpect(status().isOk());
     }
 }

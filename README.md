@@ -255,10 +255,14 @@ Todos los errores tienen el mismo formato:
 | `401` | `UNAUTHORIZED` | Sin credenciales o con credenciales incorrectas |
 | `403` | `FORBIDDEN` | El rol no permite la operación |
 | `404` | `EMPLOYEE_NOT_FOUND` | El ID no existe |
+| `404` | `NOT_FOUND` | La ruta no existe |
+| `405` | `METHOD_NOT_ALLOWED` | Método no soportado en esa ruta; la cabecera `Allow` indica los válidos |
 | `409` | `CONCURRENT_MODIFICATION` | Conflicto de bloqueo al actualizar o borrar. La petición se puede reintentar |
 | `413` | `PAYLOAD_TOO_LARGE` | El cuerpo del alta supera 1 MiB |
+| `415` | `UNSUPPORTED_MEDIA_TYPE` | El cuerpo no es JSON; la cabecera `Accept` indica los tipos válidos |
+| `500` | `INTERNAL_ERROR` | Error inesperado. La respuesta no da detalles; el log lo registra con el `X-Correlation-Id` |
 
-En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás.
+En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás. La única excepción al formato es `406`: si el cliente pide un tipo distinto de JSON en `Accept`, la API no puede responderle con JSON.
 
 ## Documentación de la API
 
@@ -280,12 +284,12 @@ npx newman@6.2.1 run docs/postman/employee-service.postman_collection.json \
 mvn -B verify
 ```
 
-Son **102 pruebas** con JUnit 5:
+Son **106 pruebas** con JUnit 5:
 
 | Tipo | Pruebas | Qué cubren | Necesita MySQL |
 |---|---|---|---|
 | Unitarias (JUnit 5 y Mockito) | 37 | Reglas del dominio, cada caso de uso con el puerto simulado, el filtro de logging, la caducidad de los recibos, su purga por lotes y la configuración de usuarios | No |
-| Web (`@WebMvcTest`) | 35 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
+| Web (`@WebMvcTest`) | 39 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
 | Integración (`@SpringBootTest`, `@DataJpaTest`) | 30 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
 
 Las pruebas de integración usan una marca única en `jobTitle` y borran sus datos al terminar, así que pueden correr contra la base de desarrollo. En CI corren contra un MySQL desechable con `JPA_DDL_AUTO=validate`.
@@ -322,7 +326,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
   - los únicos valores registrados son `Accept`, `Content-Type` y el identificador de correlación validado. Para las demás cabeceras se registra el nombre con `***`;
   - los saltos de línea se neutralizan para evitar inyección en logs;
   - no se registran el query string ni el cuerpo, porque pueden traer datos personales.
-- **Errores:** los mensajes no exponen detalles internos (clases de Jackson, valores rechazados ni trazas).
+- **Errores:** los mensajes no exponen detalles internos (clases de Jackson, valores rechazados ni trazas), tampoco en un `500` inesperado.
 - **Superficie expuesta:** Actuator solo publica `health`. La documentación se puede apagar con `API_DOCS_ENABLED=false`.
 - **Secretos:** fuera del repositorio. `.env` está en `.gitignore` y en `.dockerignore`, y las credenciales llegan como variables al arrancar.
 - **Contenedores:**
