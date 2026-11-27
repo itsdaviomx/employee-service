@@ -26,6 +26,7 @@ class OpenApiDocumentationTest {
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.info.title").value("Employee Service API"))
+                .andExpect(jsonPath("$.components.securitySchemes.basicAuth.scheme").value("basic"))
                 .andExpect(jsonPath("$.paths['/employees']", hasKey("get")))
                 .andExpect(jsonPath("$.paths['/employees']", hasKey("post")))
                 .andExpect(jsonPath("$.paths['/employees/{id}']", hasKey("get")))

@@ -24,6 +24,9 @@ env:
   DB_PASSWORD: ci-only-password
   # The schema comes from the versioned scripts; Hibernate only checks that it matches the mapping.
   JPA_DDL_AUTO: validate
+  # API users for the test run only, like the database above.
+  API_ADMIN_PASSWORD: ci-only-admin-password
+  API_READER_PASSWORD: ci-only-reader-password
 
 jobs:
   build-test:

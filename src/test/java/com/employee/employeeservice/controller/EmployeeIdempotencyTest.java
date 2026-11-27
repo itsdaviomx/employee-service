@@ -1,5 +1,6 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.config.SecurityConfiguration;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -13,6 +14,7 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.user;
 
 @Sql("/db/mysql/001_employee_creation_receipts.sql")
 class EmployeeIdempotencyTest extends EmployeeBatchHttpSupport {
@@ -80,7 +82,8 @@ class EmployeeIdempotencyTest extends EmployeeBatchHttpSupport {
             var batch = json.createObjectNode();
             batch.putArray("employees").add(employee("Ana").put("requestId", keyA));
             var result = mvc.perform(org.springframework.test.web.servlet.request.MockMvcRequestBuilders
-                            .post("/employees").contentType("application/json").content(json.writeValueAsBytes(batch)))
+                            .post("/employees").contentType("application/json").content(json.writeValueAsBytes(batch))
+                            .with(user("admin").roles(SecurityConfiguration.ADMIN)))
                     .andReturn().getResponse();
             assertThat(result.getStatus()).isIn(200, 201);
             return json.readTree(result.getContentAsString()).get(0);
