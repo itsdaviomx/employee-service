@@ -32,6 +32,7 @@ services:
       DB_USER: ${DB_USER:-employee_app}
       DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
       JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      BATCH_WRITE_TIMEOUT: ${BATCH_WRITE_TIMEOUT:-10s}
       LOG_LEVEL: ${LOG_LEVEL:-INFO}
       API_DOCS_ENABLED: ${API_DOCS_ENABLED:-true}
       API_ADMIN_USER: ${API_ADMIN_USER:-admin}

@@ -21,12 +21,14 @@ import io.swagger.v3.oas.annotations.responses.ApiResponse;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.dao.DataAccessException;
 import org.springframework.dao.DataAccessResourceFailureException;
 import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
 import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -41,6 +43,7 @@ import javax.validation.Valid;
 import javax.validation.Validator;
 import java.sql.SQLException;
 import java.sql.SQLTransientConnectionException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -58,10 +61,15 @@ public class EmployeeController {
     private final DeleteEmployeeService deleteEmployeeService;
     private final UpdateEmployeeService updateEmployeeService;
 
+    private final ThreadPoolTaskExecutor applicationTaskExecutor;
+    @Value("${app.batch.write-timeout}")
+    private Duration batchWriteTimeout;
+
     @Operation(
             summary = "Create one or more employees",
             description = "Each item is validated and saved on its own and the response reports every item by position. "
-                    + "Send up to 100 items per request (1 MiB total). A requestId protects retries for 24 hours."
+                    + "Send up to 100 items per request (1 MiB total). A requestId protects retries for 24 hours. "
+                    + "NOT_ATTEMPTED means no write started. PERSISTENCE_ERROR means the outcome is unconfirmed."
     )
     @ApiResponse(responseCode = "201", description = "Every employee was created")
     @ApiResponse(responseCode = "200", description = "Some items were not created; check each item's status")
@@ -69,7 +77,7 @@ public class EmployeeController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "413", description = "Request body exceeds 1 MiB",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
-    @ApiResponse(responseCode = "503", description = "Database unavailable for every item",
+    @ApiResponse(responseCode = "503", description = "No writes could be confirmed because the database, workers or time budget were unavailable",
             content = @Content(array = @ArraySchema(
                     schema = @Schema(implementation = EmployeeCreationResult.class))))
     @ApiResponse(responseCode = "406", description = "The client must accept JSON", content = @Content)
@@ -79,12 +87,17 @@ public class EmployeeController {
     ) {
         List<EmployeeCreationResult> results = new ArrayList<>();
 
+        BatchWriteDeadline deadline = new BatchWriteDeadline(applicationTaskExecutor, batchWriteTimeout);
         int unavailable = 0;
         for (int index = 0; index < request.employees().size(); index++) {
             JsonNode item = request.employees().get(index);
             int position = index + 1;
             try {
-                results.add(createOne(position, item));
+                results.add(createOne(position, item, deadline));
+            } catch (BatchWriteDeadline.Unavailable ex) {
+                unavailable++;
+                results.add(ex.started ? EmployeeCreationResult.persistenceError(position)
+                        : EmployeeCreationResult.notAttempted(position));
             } catch (DataAccessException | TransactionException exception) {
                 log.error("Persistence failure for employee at batch position {}", position, exception);
                 if (isDatabaseUnavailable(exception)) {
@@ -138,7 +151,7 @@ public class EmployeeController {
         deleteEmployeeService.execute(id);
     }
 
-    private EmployeeCreationResult createOne(int position, JsonNode item) {
+    private EmployeeCreationResult createOne(int position, JsonNode item, BatchWriteDeadline deadline) {
         if (item == null || !item.isObject()) {
             return EmployeeCreationResult.invalid(position, "Employee must be a JSON object");
         }
@@ -163,7 +176,7 @@ public class EmployeeController {
         }
 
         try {
-            var outcome = creator.create(request.requestId(), request.toCommand());
+            var outcome = deadline.execute(() -> creator.create(request.requestId(), request.toCommand()));
             if (outcome.replayed()) {
                 return EmployeeCreationResult.replayed(position, outcome.employee());
             }

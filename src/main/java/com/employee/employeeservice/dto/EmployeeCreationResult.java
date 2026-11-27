@@ -14,7 +14,8 @@ public record EmployeeCreationResult(
         REPLAYED,
         CONFLICT,
         INVALID,
-        PERSISTENCE_ERROR
+        PERSISTENCE_ERROR,
+        NOT_ATTEMPTED
     }
 
     public static EmployeeCreationResult created(int position, EmployeeResponse employee) {
@@ -31,6 +32,11 @@ public record EmployeeCreationResult(
 
     public static EmployeeCreationResult invalid(int position, String error) {
         return new EmployeeCreationResult(position, Status.INVALID, null, error);
+    }
+
+    public static EmployeeCreationResult notAttempted(int position) {
+        return new EmployeeCreationResult(position, Status.NOT_ATTEMPTED, null,
+                "No write was started. Retry this item with the same requestId if supplied");
     }
 
     public static EmployeeCreationResult persistenceError(int position) {
