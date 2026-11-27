@@ -2,6 +2,7 @@ package com.employee.employeeservice.dto;
 
 import com.employee.employeeservice.application.port.in.CreateEmployeeCommand;
 import com.fasterxml.jackson.annotation.JsonFormat;
+import io.swagger.v3.oas.annotations.media.Schema;
 
 import javax.validation.constraints.NotBlank;
 import javax.validation.constraints.NotNull;
@@ -12,6 +13,7 @@ import java.util.UUID;
 
 public record CreateEmployeeRequest(
 
+        @Schema(description = "Optional client-generated key; repeat it on retries to avoid duplicates")
         UUID requestId,
 
         @NotBlank
@@ -24,6 +26,7 @@ public record CreateEmployeeRequest(
 
         String maternalLastName,
 
+        @Schema(description = "Optional; when sent it must match the birth date")
         @PositiveOrZero
         Integer age,
 
@@ -32,7 +35,8 @@ public record CreateEmployeeRequest(
 
         @NotNull
         @PastOrPresent
-        @JsonFormat(pattern = "dd-MM-yyyy")
+        @JsonFormat(pattern = ApiDateFormat.PATTERN)
+        @Schema(type = "string", pattern = ApiDateFormat.REGEX, example = ApiDateFormat.EXAMPLE)
         LocalDate birthDate,
 
         @NotBlank
