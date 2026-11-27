@@ -1,0 +1,639 @@
+{
+  "info": {
+    "_postman_id": "6f3c2a7e-1d4b-4c8e-9a51-2b7d0e9f4c13",
+    "name": "Employee Service",
+    "description": "Exercises every endpoint of the employee service, including validation and error cases.\n\nRun the whole collection in order (Collection Runner or Newman): requests save the created IDs for the next ones and the last folder deletes everything the run created.\n\nChange baseUrl if the service is not on http://localhost:8080.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "0. Health",
+      "item": [
+        {
+          "name": "Readiness probe",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "pm.test('Service is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/actuator/health/readiness",
+            "description": "Ready only when MySQL is reachable. Run this first."
+          }
+        }
+      ]
+    },
+    {
+      "name": "1. Create",
+      "item": [
+        {
+          "name": "Create two employees",
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "// A new idempotency key per run; the next request reuses it.",
+                  "pm.collectionVariables.set('requestId', pm.variables.replaceIn('{{$guid}}'));"
+                ]
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 201', () => pm.response.to.have.status(201));",
+                  "const results = pm.response.json();",
+                  "pm.test('Both items are CREATED', () => pm.expect(results.map(r => r.status)).to.eql(['CREATED', 'CREATED']));",
+                  "pm.test('Results keep the batch position', () => pm.expect(results.map(r => r.position)).to.eql([1, 2]));",
+                  "pm.test('Birth date uses dd-MM-yyyy', () => pm.expect(results[0].employee.birthDate).to.eql('14-03-1995'));",
+                  "pm.collectionVariables.set('employeeId', results[0].employee.id);",
+                  "pm.collectionVariables.set('secondEmployeeId', results[1].employee.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employees\": [\n    {\n      \"firstName\": \"Ana\",\n      \"middleName\": \"Maria\",\n      \"paternalLastName\": \"Postman\",\n      \"maternalLastName\": \"Lopez\",\n      \"sex\": \"F\",\n      \"birthDate\": \"14-03-1995\",\n      \"jobTitle\": \"Developer\",\n      \"active\": true,\n      \"requestId\": \"{{requestId}}\"\n    },\n    {\n      \"firstName\": \"Eva\",\n      \"middleName\": \"Maria\",\n      \"paternalLastName\": \"Postman\",\n      \"maternalLastName\": \"Lopez\",\n      \"sex\": \"F\",\n      \"birthDate\": \"14-03-1995\",\n      \"jobTitle\": \"Developer\",\n      \"active\": false\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Ana carries a requestId so a retry can be detected. Saves both IDs for later requests."
+          }
+        },
+        {
+          "name": "Retry with the same requestId",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const result = pm.response.json()[0];",
+                  "pm.test('Item is REPLAYED', () => pm.expect(result.status).to.eql('REPLAYED'));",
+                  "pm.test('No duplicate: same employee ID', () => pm.expect(result.employee.id).to.eql(pm.collectionVariables.get('employeeId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employees\": [\n    {\n      \"firstName\": \"Ana\",\n      \"middleName\": \"Maria\",\n      \"paternalLastName\": \"Postman\",\n      \"maternalLastName\": \"Lopez\",\n      \"sex\": \"F\",\n      \"birthDate\": \"14-03-1995\",\n      \"jobTitle\": \"Developer\",\n      \"active\": true,\n      \"requestId\": \"{{requestId}}\"\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Same key and same data: returns the original employee instead of creating another one."
+          }
+        },
+        {
+          "name": "Batch with one invalid item",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const results = pm.response.json();",
+                  "pm.test('Valid item is created, invalid one is reported', () => pm.expect(results.map(r => r.status)).to.eql(['CREATED', 'INVALID']));",
+                  "pm.test('Invalid item explains why', () => pm.expect(results[1].error).to.include('Age must match'));",
+                  "pm.collectionVariables.set('partialEmployeeId', results[0].employee.id);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employees\": [\n    {\n      \"firstName\": \"Luis\",\n      \"middleName\": \"Maria\",\n      \"paternalLastName\": \"Postman\",\n      \"maternalLastName\": \"Lopez\",\n      \"sex\": \"F\",\n      \"birthDate\": \"14-03-1995\",\n      \"jobTitle\": \"Developer\",\n      \"active\": true\n    },\n    {\n      \"firstName\": \"Mia\",\n      \"middleName\": \"Maria\",\n      \"paternalLastName\": \"Postman\",\n      \"maternalLastName\": \"Lopez\",\n      \"sex\": \"F\",\n      \"birthDate\": \"14-03-1995\",\n      \"jobTitle\": \"Developer\",\n      \"active\": true,\n      \"age\": 1\n    }\n  ]\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Items are processed independently: one bad item does not reject the whole batch."
+          }
+        },
+        {
+          "name": "Empty batch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_FAILED', () => pm.expect(pm.response.json().error).to.eql('VALIDATION_FAILED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"employees\": []\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "2. Read",
+      "item": [
+        {
+          "name": "List all employees",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().map(e => e.id);",
+                  "pm.test('Includes active and inactive employees', () => {",
+                  "    pm.expect(ids).to.include(pm.collectionVariables.get('employeeId'));",
+                  "    pm.expect(ids).to.include(pm.collectionVariables.get('secondEmployeeId'));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees"
+          }
+        },
+        {
+          "name": "Get employee by ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const employee = pm.response.json();",
+                  "pm.test('Returns the requested employee', () => pm.expect(employee.id).to.eql(pm.collectionVariables.get('employeeId')));",
+                  "pm.test('Age is calculated', () => pm.expect(employee.age).to.be.a('number'));",
+                  "pm.test('Birth date uses dd-MM-yyyy', () => pm.expect(employee.birthDate).to.match(/^\\d{2}-\\d{2}-\\d{4}$/));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/{{employeeId}}"
+          }
+        },
+        {
+          "name": "Get unknown ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/999999999"
+          }
+        },
+        {
+          "name": "Get non-numeric ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is INVALID_PARAMETER', () => pm.expect(pm.response.json().error).to.eql('INVALID_PARAMETER'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/abc"
+          }
+        },
+        {
+          "name": "Search by partial name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const ids = pm.response.json().map(e => e.id);",
+                  "pm.test('Case-insensitive partial match', () => pm.expect(ids).to.include(pm.collectionVariables.get('employeeId')));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/search?name=POSTM",
+            "description": "Matches 'Postman' in the paternal last name, ignoring case."
+          }
+        },
+        {
+          "name": "Search with a blank name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is INVALID_SEARCH_TERM', () => pm.expect(pm.response.json().error).to.eql('INVALID_SEARCH_TERM'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/search?name=%20%20"
+          }
+        },
+        {
+          "name": "Search without name",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is MISSING_PARAMETER', () => pm.expect(pm.response.json().error).to.eql('MISSING_PARAMETER'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/search"
+          }
+        }
+      ]
+    },
+    {
+      "name": "3. Update",
+      "item": [
+        {
+          "name": "Update some fields",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+                  "const employee = pm.response.json();",
+                  "pm.test('Sent fields change', () => {",
+                  "    pm.expect(employee.jobTitle).to.eql('Architect');",
+                  "    pm.expect(employee.active).to.eql(false);",
+                  "});",
+                  "pm.test('Omitted fields keep their value', () => pm.expect(employee.firstName).to.eql('Ana'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees/{{employeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"Architect\",\n  \"active\": false\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update with a blank field",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is VALIDATION_FAILED', () => pm.expect(pm.response.json().error).to.eql('VALIDATION_FAILED'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees/{{employeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"firstName\": \"  \"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update with a wrong date format",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is MALFORMED_REQUEST', () => pm.expect(pm.response.json().error).to.eql('MALFORMED_REQUEST'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees/{{employeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"birthDate\": \"1995-03-14\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update with an age that does not match",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 400', () => pm.response.to.have.status(400));",
+                  "pm.test('Error code is INVALID_EMPLOYEE', () => pm.expect(pm.response.json().error).to.eql('INVALID_EMPLOYEE'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees/{{employeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"age\": 1\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "Update unknown ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees/999999999",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"Architect\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "4. Delete (cleanup)",
+      "item": [
+        {
+          "name": "Delete employee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));",
+                  "pm.test('No body', () => pm.expect(pm.response.text()).to.eql(''));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/employees/{{employeeId}}"
+          }
+        },
+        {
+          "name": "Delete the same employee again",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/employees/{{employeeId}}"
+          }
+        },
+        {
+          "name": "Delete second employee",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/employees/{{secondEmployeeId}}"
+          }
+        },
+        {
+          "name": "Delete employee from the partial batch",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 204', () => pm.response.to.have.status(204));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "DELETE",
+            "header": [],
+            "url": "{{baseUrl}}/employees/{{partialEmployeeId}}"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8080"
+    },
+    {
+      "key": "requestId",
+      "value": ""
+    },
+    {
+      "key": "employeeId",
+      "value": ""
+    },
+    {
+      "key": "secondEmployeeId",
+      "value": ""
+    },
+    {
+      "key": "partialEmployeeId",
+      "value": ""
+    }
+  ]
+}
