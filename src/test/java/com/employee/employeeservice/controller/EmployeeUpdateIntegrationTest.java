@@ -1,6 +1,12 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.application.port.in.UpdateEmployeeCommand;
+import com.employee.employeeservice.application.service.UpdateEmployeeService;
 import com.fasterxml.jackson.databind.JsonNode;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.transaction.PlatformTransactionManager;
+import org.springframework.transaction.TransactionDefinition;
+import org.springframework.transaction.support.TransactionTemplate;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.ResultActions;
@@ -54,6 +60,30 @@ class EmployeeUpdateIntegrationTest extends EmployeeBatchHttpSupport {
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("EMPLOYEE_NOT_FOUND"));
         assertThat(employeeCount()).isZero();
+    }
+
+    @Autowired private PlatformTransactionManager transactions;
+    @Autowired private UpdateEmployeeService updateService;
+
+    @Test
+    void partialUpdateUsesLatestCommittedRowEvenWhenItsTransactionHasAnOlderSnapshot() throws Exception {
+        long id = createAna();
+        TransactionTemplate first = new TransactionTemplate(transactions);
+        first.setIsolationLevel(TransactionDefinition.ISOLATION_REPEATABLE_READ);
+        TransactionTemplate other = new TransactionTemplate(transactions);
+        other.setPropagationBehavior(TransactionDefinition.PROPAGATION_REQUIRES_NEW);
+        first.executeWithoutResult(tx -> {
+            // Establish the old InnoDB snapshot without caching the employee in Hibernate.
+            assertThat(jdbc.queryForObject("SELECT first_name FROM employees WHERE id = ?", String.class, id))
+                    .isEqualTo("Ana");
+            other.executeWithoutResult(inner -> updateService.execute(id, new UpdateEmployeeCommand(
+                    "Eva", null, null, null, null, null, null, null, null)));
+            updateService.execute(id, new UpdateEmployeeCommand(
+                    null, null, null, null, null, null, null, null, false));
+        });
+        JsonNode after = fetch(id);
+        assertThat(after.path("firstName").asText()).isEqualTo("Eva");
+        assertThat(after.path("active").asBoolean()).isFalse();
     }
 
     private long createAna() throws Exception {

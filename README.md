@@ -30,8 +30,8 @@ Microservicio REST para gestionar empleados: alta individual o por lotes, consul
 | `GET` | `/employees/{id}` | Detalle de un empleado | `READER` o `ADMIN` | `200`, `400`, `404` |
 | `GET` | `/employees/search?name={name}` | Búsqueda parcial en cualquiera de los cuatro campos de nombre, sin distinguir mayúsculas | `READER` o `ADMIN` | `200`, `400` |
 | `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400`, `413`, `503` |
-| `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404` |
-| `DELETE` | `/employees/{id}` | Elimina un empleado | `ADMIN` | `204`, `400`, `404` |
+| `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404`, `409` |
+| `DELETE` | `/employees/{id}` | Elimina un empleado | `ADMIN` | `204`, `400`, `404`, `409` |
 
 Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/readiness` (públicos), Swagger UI en `/swagger-ui.html` y el contrato OpenAPI en `/v3/api-docs`.
 
@@ -251,6 +251,7 @@ Todos los errores tienen el mismo formato:
 | `401` | `UNAUTHORIZED` | Sin credenciales o con credenciales incorrectas |
 | `403` | `FORBIDDEN` | El rol no permite la operación |
 | `404` | `EMPLOYEE_NOT_FOUND` | El ID no existe |
+| `409` | `CONCURRENT_MODIFICATION` | Conflicto de bloqueo al actualizar o borrar. La petición se puede reintentar |
 | `413` | `PAYLOAD_TOO_LARGE` | El cuerpo del alta supera 1 MiB |
 
 En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás.
@@ -350,7 +351,7 @@ git log --oneline --graph --first-parent develop
 - **La edad no se guarda:** se calcula desde `birthDate`. Guardarla la dejaría desactualizada cada año.
 - **Alta por lotes con resultado por elemento:** un elemento inválido no rechaza a los demás. El `requestId` hace seguros los reintentos, incluso con peticiones simultáneas.
 - **`PUT` parcial:** el enunciado pide actualizar "todos o algunos" campos con `PUT`. Como `null` significa "conservar", el segundo nombre y el apellido materno no se pueden borrar. En una API propia usaría `PATCH` con JSON Merge Patch (RFC 7396).
-- **Sin bloqueo optimista:** si dos actualizaciones llegan al mismo empleado a la vez, gana la última. El siguiente paso sería `@Version` con respuesta `409`.
+- **Actualizaciones concurrentes:** cada `PUT` bloquea la fila por ID en MySQL, lee sus valores vigentes y aplica el cambio en la misma transacción. Dos peticiones que tocan campos distintos conservan ambos cambios. Para un mismo campo prevalece la última escritura completada. Un conflicto de bloqueo devuelve `409`.
 - **Spring Boot 2.7 sin soporte:** la versión la pide el enunciado. Por eso el escaneo de Trivy solo reporta: una migración a Spring Boot 3 permitiría hacerlo bloqueante.
 - **Siguiente paso de seguridad:** OAuth2 Resource Server con JWT de un proveedor de identidad, para que el servicio no guarde contraseñas. HTTP Basic solo es aceptable detrás de HTTPS.
 - **Siguiente paso del esquema:** migraciones con Flyway, partiendo de los scripts ya versionados.

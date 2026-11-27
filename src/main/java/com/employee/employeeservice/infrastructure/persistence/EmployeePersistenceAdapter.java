@@ -5,10 +5,12 @@ import com.employee.employeeservice.domain.model.Employee;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Repository;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 @Repository
 @RequiredArgsConstructor
@@ -31,6 +33,15 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
     @Override
     public Optional<Employee> findById(long id) {
         return jpaRepository.findById(id).map(this::toDomain);
+    }
+
+    @Override
+    @Transactional
+    public Optional<Employee> update(long id, UnaryOperator<Employee> change) {
+        return jpaRepository.findByIdForUpdate(id)
+                .map(this::toDomain)
+                .map(change)
+                .map(this::save);
     }
 
     @Override

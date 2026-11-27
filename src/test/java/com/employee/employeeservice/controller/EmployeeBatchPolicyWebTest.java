@@ -8,6 +8,7 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.dao.CannotAcquireLockException;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.CannotGetJdbcConnectionException;
@@ -21,10 +22,12 @@ import java.util.Collections;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -97,6 +100,14 @@ class EmployeeBatchPolicyWebTest {
         MockHttpInputMessage input = new MockHttpInputMessage(new byte[BatchBodyAdvice.MAX_BYTES + 1]);
         assertThatThrownBy(() -> new BatchBodyAdvice().beforeBodyRead(input, null, null, null))
                 .isInstanceOf(BatchBodyAdvice.PayloadTooLarge.class);
+    }
+
+    @Test
+    void returns409WhenTheUpdateCannotAcquireItsLock() throws Exception {
+        when(updateService.execute(anyLong(), any())).thenThrow(new CannotAcquireLockException("timeout"));
+        mvc.perform(put("/employees/7").contentType(MediaType.APPLICATION_JSON).content("{\"active\":false}"))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.error").value("CONCURRENT_MODIFICATION"));
     }
 
     private static String batch(int count) {

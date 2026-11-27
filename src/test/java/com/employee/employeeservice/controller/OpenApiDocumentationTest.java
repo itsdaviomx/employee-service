@@ -41,6 +41,7 @@ class OpenApiDocumentationTest {
                 .andExpect(jsonPath("$.paths['/employees'].post.responses", hasKey("201")))
                 .andExpect(jsonPath("$.paths['/employees'].post.responses", hasKey("413")))
                 .andExpect(jsonPath("$.paths['/employees'].post.responses", hasKey("503")))
+                .andExpect(jsonPath("$.paths['/employees/{id}'].put.responses", hasKey("409")))
                 .andExpect(jsonPath("$.paths['/employees/{id}'].delete.responses", hasKey("204")))
                 .andExpect(jsonPath("$.paths['/employees/{id}'].put.responses['404'].content['application/json'].schema.$ref")
                         .value(ERROR_SCHEMA))
