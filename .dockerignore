@@ -1,0 +1,8 @@
+# Keep the build context small and never send secrets or local state to the image.
+.git/
+.idea/
+*.iml
+target/
+logs/
+.env
+.env.*

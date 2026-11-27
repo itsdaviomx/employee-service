@@ -5,6 +5,7 @@ target/
 .kotlin
 
 ### IntelliJ IDEA ###
+.idea
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
@@ -37,3 +38,12 @@ build/
 
 ### Mac OS ###
 .DS_Store
+
+### Local secrets ###
+.env
+
+### Logs ###
+logs/
+
+### Evidence recordings (the original is too large for Git; docs/evidence keeps the 720p export) ###
+docs/evidence/*.mov

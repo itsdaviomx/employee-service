@@ -1,0 +1,114 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop, "feature/**"]
+  pull_request:
+    branches: [main, develop]
+
+# Least privilege: the workflow only reads the repository.
+permissions:
+  contents: read
+
+# A new push to the same branch cancels the run that is still in progress.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Throwaway database that exists only while the job runs. It is not a real credential.
+  DB_HOST: 127.0.0.1
+  DB_PORT: "3306"
+  DB_NAME: employee_service
+  DB_USER: employee_app
+  DB_PASSWORD: ci-only-password
+  # The schema comes from the versioned scripts; Hibernate only checks that it matches the mapping.
+  JPA_DDL_AUTO: validate
+  # API users for the test run only, like the database above.
+  API_ADMIN_PASSWORD: ci-only-admin-password
+  API_READER_PASSWORD: ci-only-reader-password
+
+jobs:
+  build-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    services:
+      mysql:
+        image: mysql:8.4
+        env:
+          MYSQL_DATABASE: employee_service
+          MYSQL_USER: employee_app
+          MYSQL_PASSWORD: ci-only-password
+          MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 --silent"
+          --health-interval=5s
+          --health-timeout=3s
+          --health-retries=30
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+
+      - name: Create the schema from the versioned scripts
+        env:
+          MYSQL_PWD: ${{ env.DB_PASSWORD }}
+        run: |
+          for script in src/main/resources/db/mysql/*.sql; do
+            echo "Applying $script"
+            mysql --protocol=TCP -h "$DB_HOST" -P "$DB_PORT" -u "$DB_USER" "$DB_NAME" < "$script"
+          done
+
+      - name: Build and run the tests
+        run: mvn -B verify
+
+      - name: Upload the test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-reports
+          path: target/surefire-reports/
+          retention-days: 14
+
+      - name: Upload the jar
+        uses: actions/upload-artifact@v4
+        with:
+          name: employee-service-jar
+          path: target/employee-service-*.jar
+          retention-days: 7
+
+  docker:
+    name: Docker image and vulnerability scan
+    runs-on: ubuntu-latest
+    needs: build-test
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out the code
+        uses: actions/checkout@v4
+
+      - name: Build the image
+        run: docker build -t employee-service:${{ github.sha }} .
+
+      # Report only: Spring Boot 2.7 (required by the exercise) is end-of-life and has known CVEs,
+      # so a blocking scan would keep the pipeline red. A real project would set exit-code to 1
+      # and upgrade to Spring Boot 3.
+      - name: Scan the image with Trivy
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: employee-service:${{ github.sha }}
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+          format: table
+          exit-code: "0"
