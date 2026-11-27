@@ -5,6 +5,7 @@ import com.employee.employeeservice.application.port.out.EmployeeRepository;
 import com.employee.employeeservice.domain.model.Employee;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 
 public class CreateEmployeeService {
 
@@ -24,7 +25,7 @@ public class CreateEmployeeService {
                 command.sex(),
                 command.birthDate(),
                 command.jobTitle(),
-                LocalDateTime.now(),
+                LocalDateTime.now().truncatedTo(ChronoUnit.MICROS),
                 command.active()
         );
 

@@ -48,7 +48,7 @@ Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/rea
 | `sex` | texto | Obligatorio |
 | `birthDate` | `dd-MM-yyyy` | Obligatorio, no puede ser futura |
 | `jobTitle` | texto | Obligatorio |
-| `createdAt` | fecha y hora ISO-8601 | Automático al dar de alta; no se modifica |
+| `createdAt` | fecha y hora local ISO-8601, sin desplazamiento UTC | Lo asigna el servidor al dar de alta. Ejemplo: `2026-01-15T10:30:00.123456` |
 | `active` | booleano | Obligatorio en el alta |
 
 Los seis campos de texto admiten hasta 255 caracteres Unicode cada uno. Una fecha imposible, por ejemplo `29-02-2023`, se rechaza; `29-02-2024` sí es válida. En un alta por lote el error corresponde solo a ese elemento.

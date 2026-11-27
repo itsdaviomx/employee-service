@@ -1,11 +1,17 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.dto.EmployeeResponse;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.time.LocalDate;
+import java.time.LocalDateTime;
+
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.hamcrest.Matchers.hasKey;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
@@ -59,6 +65,23 @@ class OpenApiDocumentationTest {
                         .value("14-03-1995"))
                 .andExpect(jsonPath("$.components.schemas.EmployeeResponse.properties.birthDate.example")
                         .value("14-03-1995"));
+    }
+
+    @Autowired private ObjectMapper json;
+
+    @Test
+    void creationTimestampMatchesTheDocumentedLocalDateTime() throws Exception {
+        String spec = mvc.perform(get("/v3/api-docs")).andExpect(status().isOk())
+                .andReturn().getResponse().getContentAsString();
+        var schema = json.readTree(spec).at("/components/schemas/EmployeeResponse/properties/createdAt");
+        assertThat(schema.path("type").asText()).isEqualTo("string");
+        assertThat(schema.has("format")).isFalse();
+        LocalDateTime local = LocalDateTime.of(2026, 1, 15, 10, 30, 0, 123456000);
+        EmployeeResponse employee = new EmployeeResponse(7L, "Ana", null, "Ruiz", null, 30, "F",
+                LocalDate.of(1995, 3, 14), "Engineer", local, true);
+        String value = json.readTree(json.writeValueAsBytes(employee)).path("createdAt").asText();
+        assertThat(value).matches(schema.path("pattern").asText());
+        assertThat(LocalDateTime.parse(value)).isEqualTo(local);
     }
 
     @Test
