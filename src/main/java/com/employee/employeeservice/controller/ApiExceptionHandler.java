@@ -53,6 +53,12 @@ public class ApiExceptionHandler {
         );
     }
 
+    @ExceptionHandler(BatchBodyAdvice.PayloadTooLarge.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public ErrorResponse payloadTooLarge() {
+        return new ErrorResponse("PAYLOAD_TOO_LARGE", "Batch request body exceeds 1 MiB");
+    }
+
     @ExceptionHandler(MethodArgumentNotValidException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse validationFailed(MethodArgumentNotValidException exception) {

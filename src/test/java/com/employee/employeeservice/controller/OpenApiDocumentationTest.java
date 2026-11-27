@@ -39,6 +39,8 @@ class OpenApiDocumentationTest {
     void shouldDocumentStatusCodesAndErrorBodies() throws Exception {
         mvc.perform(get("/v3/api-docs"))
                 .andExpect(jsonPath("$.paths['/employees'].post.responses", hasKey("201")))
+                .andExpect(jsonPath("$.paths['/employees'].post.responses", hasKey("413")))
+                .andExpect(jsonPath("$.paths['/employees'].post.responses", hasKey("503")))
                 .andExpect(jsonPath("$.paths['/employees/{id}'].delete.responses", hasKey("204")))
                 .andExpect(jsonPath("$.paths['/employees/{id}'].put.responses['404'].content['application/json'].schema.$ref")
                         .value(ERROR_SCHEMA))
@@ -49,6 +51,7 @@ class OpenApiDocumentationTest {
     @Test
     void shouldDescribeTheBatchItemsAndTheDateFormat() throws Exception {
         mvc.perform(get("/v3/api-docs"))
+                .andExpect(jsonPath("$.components.schemas.CreateEmployeesRequest.properties.employees.maxItems").value(100))
                 .andExpect(jsonPath("$.components.schemas.CreateEmployeesRequest.properties.employees.items.$ref")
                         .value("#/components/schemas/CreateEmployeeRequest"))
                 .andExpect(jsonPath("$.components.schemas.CreateEmployeeRequest.properties.birthDate.example")

@@ -29,7 +29,7 @@ Microservicio REST para gestionar empleados: alta individual o por lotes, consul
 | `GET` | `/employees` | Todos los empleados, activos e inactivos, ordenados por ID | `READER` o `ADMIN` | `200` |
 | `GET` | `/employees/{id}` | Detalle de un empleado | `READER` o `ADMIN` | `200`, `400`, `404` |
 | `GET` | `/employees/search?name={name}` | Búsqueda parcial en cualquiera de los cuatro campos de nombre, sin distinguir mayúsculas | `READER` o `ADMIN` | `200`, `400` |
-| `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400` |
+| `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400`, `413`, `503` |
 | `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404` |
 | `DELETE` | `/employees/{id}` | Elimina un empleado | `ADMIN` | `204`, `400`, `404` |
 
@@ -194,10 +194,10 @@ curl -i -u "$API_ADMIN_USER:$API_ADMIN_PASSWORD" -H 'Content-Type: application/j
   http://localhost:8080/employees
 ```
 
-Cada elemento se valida y se guarda por separado. La respuesta informa el resultado de cada uno, en el orden en que llegaron:
+Se admiten de 1 a 100 empleados y hasta 1 MiB (1 048 576 bytes) de JSON por petición. Un lote mayor se rechaza completo antes de procesar empleados. Dentro de esos límites, cada elemento se valida y se guarda por separado. La respuesta informa el resultado de cada uno, en el orden en que llegaron:
 
 - **Estados posibles de cada elemento:** `CREATED`, `REPLAYED`, `CONFLICT`, `INVALID` o `PERSISTENCE_ERROR`.
-- **Código HTTP:** `201` si todos se crearon; `200` si alguno no.
+- **Código HTTP:** `201` cuando se crean todos. Si la conexión a la base falla para todos, se devuelve `503` con el resultado de cada posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
 - **`requestId` (opcional):** hace seguro reintentar.
   - el mismo `requestId` con los mismos datos devuelve `REPLAYED` con el empleado original y no crea un duplicado;
   - con datos distintos, devuelve `CONFLICT`.
@@ -243,7 +243,7 @@ Todos los errores tienen el mismo formato:
 
 | HTTP | `error` | Cuándo |
 |---|---|---|
-| `400` | `VALIDATION_FAILED` | Un campo no cumple sus reglas, o el lote viene vacío |
+| `400` | `VALIDATION_FAILED` | Un campo no cumple sus reglas, o la cantidad de empleados está fuera del intervalo de 1 a 100 |
 | `400` | `MALFORMED_REQUEST` | JSON ilegible o fecha que no usa `dd-MM-yyyy` |
 | `400` | `INVALID_EMPLOYEE` | Regla de dominio, como una edad que no coincide con la fecha de nacimiento |
 | `400` | `INVALID_PARAMETER` | ID no numérico |
@@ -251,6 +251,7 @@ Todos los errores tienen el mismo formato:
 | `401` | `UNAUTHORIZED` | Sin credenciales o con credenciales incorrectas |
 | `403` | `FORBIDDEN` | El rol no permite la operación |
 | `404` | `EMPLOYEE_NOT_FOUND` | El ID no existe |
+| `413` | `PAYLOAD_TOO_LARGE` | El cuerpo del alta supera 1 MiB |
 
 En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás.
 
