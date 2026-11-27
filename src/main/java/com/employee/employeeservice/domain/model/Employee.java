@@ -1,5 +1,6 @@
 package com.employee.employeeservice.domain.model;
 
+import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import lombok.Getter;
 
 import java.time.LocalDate;
@@ -33,11 +34,11 @@ public final class Employee {
             boolean active
     ) {
         if (birthDate == null) {
-            throw new IllegalArgumentException("Birth date is required");
+            throw new InvalidEmployeeException("Birth date is required");
         }
 
         if (birthDate.isAfter(LocalDate.now())) {
-            throw new IllegalArgumentException("Birth date cannot be in the future");
+            throw new InvalidEmployeeException("Birth date cannot be in the future");
         }
 
         this.id = id;
@@ -58,11 +59,11 @@ public final class Employee {
 
     public void validateDeclaredAge(int declaredAge) {
         if (declaredAge < 0) {
-            throw new IllegalArgumentException("Age must be zero or greater");
+            throw new InvalidEmployeeException("Age must be zero or greater");
         }
 
         if (declaredAge != getAge()) {
-            throw new IllegalArgumentException("Age must match the birth date");
+            throw new InvalidEmployeeException("Age must match the birth date");
         }
     }
 }
