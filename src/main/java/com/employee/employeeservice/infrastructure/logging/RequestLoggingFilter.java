@@ -35,8 +35,7 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     public static final String CORRELATION_ID_KEY = "correlationId";
 
     private static final Pattern VALID_CORRELATION_ID = Pattern.compile("[A-Za-z0-9._-]{1,64}");
-    private static final Set<String> MASKED_HEADERS =
-            Set.of("authorization", "proxy-authorization", "cookie", "set-cookie", "x-api-key");
+    private static final Set<String> LOGGABLE_HEADERS = Set.of("accept", "content-type");
     private static final String MASK = "***";
     private static final Pattern CONTROL_CHARACTERS = Pattern.compile("\\p{Cntrl}");
     private static final int MAX_VALUE_LENGTH = 200;
@@ -89,7 +88,10 @@ public class RequestLoggingFilter extends OncePerRequestFilter {
     }
 
     private static String headerValue(HttpServletRequest request, String name) {
-        if (MASKED_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
+        if (CORRELATION_ID_HEADER.equalsIgnoreCase(name)) {
+            return MDC.get(CORRELATION_ID_KEY);
+        }
+        if (!LOGGABLE_HEADERS.contains(name.toLowerCase(Locale.ROOT))) {
             return MASK;
         }
         return sanitize(String.join(",", Collections.list(request.getHeaders(name))));

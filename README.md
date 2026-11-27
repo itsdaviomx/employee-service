@@ -319,7 +319,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
 - **CSRF desactivado a propósito:** no hay cookie de sesión de la que un sitio externo pueda aprovecharse.
 - **Respuestas:** cabeceras de seguridad (`X-Content-Type-Options`, `X-Frame-Options`, `Cache-Control: no-store`), y `401`/`403` en el mismo formato JSON que los demás errores.
 - **Logs:**
-  - `Authorization`, `Cookie` y `X-Api-Key` se registran como `***`;
+  - los únicos valores registrados son `Accept`, `Content-Type` y el identificador de correlación validado. Para las demás cabeceras se registra el nombre con `***`;
   - los saltos de línea se neutralizan para evitar inyección en logs;
   - no se registran el query string ni el cuerpo, porque pueden traer datos personales.
 - **Errores:** los mensajes no exponen detalles internos (clases de Jackson, valores rechazados ni trazas).
