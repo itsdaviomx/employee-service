@@ -39,7 +39,7 @@ services:
       API_READER_USER: ${API_READER_USER:-reader}
       API_READER_PASSWORD: ${API_READER_PASSWORD:?Set API_READER_PASSWORD in .env}
     ports:
-      - "${APP_PORT:-8080}:8080"
+      - "127.0.0.1:${APP_PORT:-8080}:8080"
 
 volumes:
   mysql-data:

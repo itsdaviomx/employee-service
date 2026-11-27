@@ -164,7 +164,7 @@ docker compose up --build -d
 Compose levanta dos contenedores:
 
 - **MySQL 8.4:** crea el usuario `employee_app` y las dos tablas en el primer arranque, con una contraseña de `root` aleatoria. No publica su puerto.
-- **El servicio:** se construye con un `Dockerfile` multi-stage, corre con un usuario sin privilegios y espera a que MySQL esté sano.
+- **El servicio:** se construye con un `Dockerfile` multi-stage, corre con un usuario sin privilegios y espera a que MySQL esté sano. Publica el puerto HTTP en `127.0.0.1` para la evaluación local. El acceso desde otra máquina requiere un proxy que termine TLS antes de reenviar las credenciales Basic.
 
 Usa los valores de tu `.env`.
 
