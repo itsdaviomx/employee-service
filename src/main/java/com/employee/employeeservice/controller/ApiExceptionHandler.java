@@ -2,6 +2,7 @@ package com.employee.employeeservice.controller;
 
 import com.employee.employeeservice.application.exception.EmployeeNotFoundException;
 import com.employee.employeeservice.application.exception.InvalidSearchTermException;
+import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import com.employee.employeeservice.dto.ErrorResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -18,6 +19,7 @@ import java.util.stream.Collectors;
 public class ApiExceptionHandler {
 
     private static final String EMPLOYEE_NOT_FOUND = "EMPLOYEE_NOT_FOUND";
+    private static final String INVALID_EMPLOYEE = "INVALID_EMPLOYEE";
     private static final String INVALID_SEARCH_TERM = "INVALID_SEARCH_TERM";
     private static final String MISSING_PARAMETER = "MISSING_PARAMETER";
     private static final String VALIDATION_FAILED = "VALIDATION_FAILED";
@@ -28,6 +30,12 @@ public class ApiExceptionHandler {
     @ResponseStatus(HttpStatus.NOT_FOUND)
     public ErrorResponse employeeNotFound(EmployeeNotFoundException exception) {
         return new ErrorResponse(EMPLOYEE_NOT_FOUND, exception.getMessage());
+    }
+
+    @ExceptionHandler(InvalidEmployeeException.class)
+    @ResponseStatus(HttpStatus.BAD_REQUEST)
+    public ErrorResponse invalidEmployee(InvalidEmployeeException exception) {
+        return new ErrorResponse(INVALID_EMPLOYEE, exception.getMessage());
     }
 
     @ExceptionHandler(InvalidSearchTermException.class)

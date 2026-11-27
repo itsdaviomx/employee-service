@@ -4,6 +4,7 @@ import com.employee.employeeservice.application.service.DeleteEmployeeService;
 import com.employee.employeeservice.application.service.GetEmployeeService;
 import com.employee.employeeservice.application.service.ListEmployeesService;
 import com.employee.employeeservice.application.service.SearchEmployeesService;
+import com.employee.employeeservice.application.service.UpdateEmployeeService;
 import com.employee.employeeservice.infrastructure.idempotency.IdempotentEmployeeCreator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -38,6 +39,9 @@ class ApiErrorWebTest {
 
     @MockBean
     private SearchEmployeesService searchEmployeesService;
+
+    @MockBean
+    private UpdateEmployeeService updateEmployeeService;
 
     @Test
     void shouldReportAnInvalidPathParameterWithoutEchoingIt() throws Exception {

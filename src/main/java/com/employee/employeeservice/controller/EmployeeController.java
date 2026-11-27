@@ -1,10 +1,13 @@
 package com.employee.employeeservice.controller;
 
 import com.employee.employeeservice.application.service.DeleteEmployeeService;
+import com.employee.employeeservice.application.service.UpdateEmployeeService;
 import com.employee.employeeservice.infrastructure.idempotency.IdempotentEmployeeCreator;
 import com.employee.employeeservice.dto.CreateEmployeeRequest;
 import com.employee.employeeservice.dto.CreateEmployeesRequest;
 import com.employee.employeeservice.dto.EmployeeCreationResult;
+import com.employee.employeeservice.dto.EmployeeResponse;
+import com.employee.employeeservice.dto.UpdateEmployeeRequest;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -17,6 +20,7 @@ import org.springframework.transaction.TransactionException;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.ResponseStatus;
@@ -38,6 +42,7 @@ public class EmployeeController {
     private final ObjectMapper objectMapper;
     private final Validator validator;
     private final DeleteEmployeeService deleteEmployeeService;
+    private final UpdateEmployeeService updateEmployeeService;
 
     @PostMapping
     public ResponseEntity<List<EmployeeCreationResult>> create(
@@ -55,6 +60,14 @@ public class EmployeeController {
 
         return ResponseEntity.status(allCreated ? HttpStatus.CREATED : HttpStatus.OK)
                 .body(results);
+    }
+
+    @PutMapping("/{id}")
+    public EmployeeResponse update(
+            @PathVariable("id") long id,
+            @Valid @RequestBody UpdateEmployeeRequest request
+    ) {
+        return EmployeeResponse.from(updateEmployeeService.execute(id, request.toCommand()));
     }
 
     @DeleteMapping("/{id}")

@@ -2,6 +2,7 @@ package com.employee.employeeservice.controller;
 
 import com.employee.employeeservice.application.exception.EmployeeNotFoundException;
 import com.employee.employeeservice.application.service.DeleteEmployeeService;
+import com.employee.employeeservice.application.service.UpdateEmployeeService;
 import com.employee.employeeservice.infrastructure.idempotency.IdempotentEmployeeCreator;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +28,9 @@ class EmployeeDeleteWebTest {
 
     @MockBean
     private DeleteEmployeeService deleteEmployeeService;
+
+    @MockBean
+    private UpdateEmployeeService updateEmployeeService;
 
     @Test
     void shouldReturnNoContentAfterDeleting() throws Exception {
