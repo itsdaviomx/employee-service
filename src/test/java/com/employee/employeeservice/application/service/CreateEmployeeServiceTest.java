@@ -2,6 +2,7 @@ package com.employee.employeeservice.application.service;
 
 import com.employee.employeeservice.application.port.in.CreateEmployeeCommand;
 import com.employee.employeeservice.application.port.out.EmployeeRepository;
+import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import com.employee.employeeservice.domain.model.Employee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -43,7 +44,7 @@ class CreateEmployeeServiceTest {
     void shouldRejectMismatchedAgeBeforeSaving() {
         CreateEmployeeCommand command = createCommand(LocalDate.now(), 25);
 
-        assertThrows(IllegalArgumentException.class, () -> service.execute(command));
+        assertThrows(InvalidEmployeeException.class, () -> service.execute(command));
 
         verifyNoInteractions(employeeRepository);
     }

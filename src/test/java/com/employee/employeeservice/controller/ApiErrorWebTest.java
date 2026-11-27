@@ -14,9 +14,15 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.when;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -76,5 +82,44 @@ class ApiErrorWebTest {
                 .andExpect(jsonPath("$.error").value("MALFORMED_REQUEST"));
 
         verifyNoInteractions(creator);
+    }
+
+    @Test
+    void shouldReportAnUnsupportedMethodAndListTheAllowedOnes() throws Exception {
+        mvc.perform(delete("/employees"))
+                .andExpect(status().isMethodNotAllowed())
+                .andExpect(header().string("Allow", containsString("GET")))
+                .andExpect(jsonPath("$.error").value("METHOD_NOT_ALLOWED"));
+    }
+
+    @Test
+    void shouldReportAnUnsupportedMediaTypeAndListTheAcceptedOnes() throws Exception {
+        mvc.perform(post("/employees")
+                        .contentType(MediaType.TEXT_PLAIN)
+                        .content("Ana"))
+                .andExpect(status().isUnsupportedMediaType())
+                .andExpect(header().string("Accept", containsString("application/json")))
+                .andExpect(jsonPath("$.error").value("UNSUPPORTED_MEDIA_TYPE"));
+
+        verifyNoInteractions(creator);
+    }
+
+    @Test
+    void shouldReportAnUnknownRoute() throws Exception {
+        mvc.perform(get("/departments"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.error").value("NOT_FOUND"));
+    }
+
+    @Test
+    void shouldHideTheDetailsOfAnUnexpectedError() throws Exception {
+        when(getEmployeeService.execute(7L))
+                .thenThrow(new IllegalStateException("jdbc:mysql://db:3306 password=secret"));
+
+        mvc.perform(get("/employees/{id}", 7))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.error").value("INTERNAL_ERROR"))
+                .andExpect(content().string(not(containsString("secret"))))
+                .andExpect(content().string(not(containsString("IllegalStateException"))));
     }
 }

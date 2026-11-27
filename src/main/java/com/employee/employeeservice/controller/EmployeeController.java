@@ -2,6 +2,7 @@ package com.employee.employeeservice.controller;
 
 import com.employee.employeeservice.application.service.DeleteEmployeeService;
 import com.employee.employeeservice.application.service.UpdateEmployeeService;
+import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import com.employee.employeeservice.infrastructure.idempotency.IdempotentEmployeeCreator;
 import com.employee.employeeservice.dto.CreateEmployeeRequest;
 import com.employee.employeeservice.dto.CreateEmployeesRequest;
@@ -166,7 +167,7 @@ public class EmployeeController {
             return EmployeeCreationResult.created(position, outcome.employee());
         } catch (IdempotentEmployeeCreator.RequestIdConflict exception) {
             return EmployeeCreationResult.conflict(position, exception.getMessage());
-        } catch (IllegalArgumentException exception) {
+        } catch (InvalidEmployeeException exception) {
             return EmployeeCreationResult.invalid(position, exception.getMessage());
         }
     }
