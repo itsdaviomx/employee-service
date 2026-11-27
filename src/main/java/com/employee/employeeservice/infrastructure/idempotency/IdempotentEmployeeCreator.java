@@ -16,11 +16,13 @@ import java.security.NoSuchAlgorithmException;
 import java.util.HexFormat;
 import java.util.UUID;
 
+import static com.employee.employeeservice.infrastructure.idempotency.ReceiptRetention.EXPIRED;
+
 @Service
 public class IdempotentEmployeeCreator {
 
     public record Outcome(EmployeeResponse employee, boolean replayed) {}
-    private record Receipt(String payloadHash, String responseJson) {}
+    private record Receipt(String payloadHash, String responseJson, boolean expired) {}
 
     public static class RequestIdConflict extends RuntimeException {
         public RequestIdConflict() {
@@ -57,21 +59,24 @@ public class IdempotentEmployeeCreator {
                     """, key, hash);
 
             Receipt receipt = jdbc.queryForObject("""
-                    SELECT payload_hash, response_json
+                    SELECT payload_hash, response_json, %s AS expired
                     FROM employee_creation_receipts WHERE request_id = ? FOR UPDATE
-                    """, (row, number) -> new Receipt(row.getString(1), row.getString(2)), key);
+                    """.formatted(EXPIRED), (row, number) -> new Receipt(
+                            row.getString("payload_hash"), row.getString("response_json"), row.getBoolean("expired")), key);
 
-            if (!hash.equals(receipt.payloadHash())) {
+            if (!receipt.expired() && !hash.equals(receipt.payloadHash())) {
                 throw new RequestIdConflict();
             }
-            if (receipt.responseJson() != null) {
+            if (!receipt.expired() && receipt.responseJson() != null) {
                 return new Outcome(json.readValue(receipt.responseJson(), EmployeeResponse.class), true);
             }
 
             EmployeeResponse employee = EmployeeResponse.from(creator.execute(command));
             jdbc.update("""
-                    UPDATE employee_creation_receipts SET response_json = ? WHERE request_id = ?
-                    """, json.writeValueAsString(employee), key);
+                    UPDATE employee_creation_receipts
+                    SET payload_hash = ?, response_json = ?, created_at = CURRENT_TIMESTAMP(6)
+                    WHERE request_id = ?
+                    """, hash, json.writeValueAsString(employee), key);
             return new Outcome(employee, false);
         } catch (JsonProcessingException exception) {
             throw new IllegalStateException("Cannot encode or read employee creation receipt", exception);

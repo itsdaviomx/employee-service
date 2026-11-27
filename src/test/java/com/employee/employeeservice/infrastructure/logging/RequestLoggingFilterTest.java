@@ -65,6 +65,7 @@ class RequestLoggingFilterTest {
         request.addHeader("Accept", "application/json");
         request.addHeader("Authorization", "Bearer secret-token");
         request.addHeader("Cookie", "SESSION=abc123");
+        request.addHeader("X-Proxy-Identity", "private-identity");
 
         filter.doFilter(request, new MockHttpServletResponse(),
                 (req, res) -> ((HttpServletResponse) res).setStatus(201));
@@ -74,6 +75,8 @@ class RequestLoggingFilterTest {
                 .contains("Accept=application/json")
                 .contains("Authorization=***")
                 .contains("Cookie=***")
+                .contains("X-Proxy-Identity=***")
+                .doesNotContain("private-identity")
                 .doesNotContain("secret-token")
                 .doesNotContain("SESSION=abc123");
     }
@@ -81,12 +84,12 @@ class RequestLoggingFilterTest {
     @Test
     void shouldNeutralizeLineBreaksInHeaders(CapturedOutput output) throws Exception {
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/employees");
-        request.addHeader("User-Agent", "curl\r\nFAKE ENTRY");
+        request.addHeader("Accept", "text/plain\r\nFAKE ENTRY");
 
         filter.doFilter(request, new MockHttpServletResponse(), OK);
 
         assertThat(output)
-                .contains("User-Agent=curl__FAKE ENTRY")
+                .contains("Accept=text/plain__FAKE ENTRY")
                 .doesNotContain("\nFAKE ENTRY");
     }
 

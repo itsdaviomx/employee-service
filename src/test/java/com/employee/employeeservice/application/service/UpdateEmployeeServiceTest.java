@@ -8,17 +8,18 @@ import com.employee.employeeservice.domain.model.Employee;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.Optional;
+import java.util.function.UnaryOperator;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -39,20 +40,22 @@ class UpdateEmployeeServiceTest {
         service = new UpdateEmployeeService(employeeRepository);
     }
 
+    private void givenCurrentEmployee() {
+        when(employeeRepository.update(eq(ID), any())).thenAnswer(call -> {
+            UnaryOperator<Employee> change = call.getArgument(1);
+            return Optional.of(change.apply(currentEmployee()));
+        });
+    }
+
     @Test
     void shouldChangeOnlyTheProvidedFieldsAndKeepIdAndCreationDate() {
-        when(employeeRepository.findById(ID)).thenReturn(Optional.of(currentEmployee()));
-        when(employeeRepository.save(any(Employee.class))).thenAnswer(call -> call.getArgument(0));
+        givenCurrentEmployee();
 
         UpdateEmployeeCommand command = new UpdateEmployeeCommand(
                 null, null, null, null, null, null, null, "Architect", false
         );
 
-        Employee result = service.execute(ID, command);
-
-        ArgumentCaptor<Employee> captor = ArgumentCaptor.forClass(Employee.class);
-        verify(employeeRepository).save(captor.capture());
-        Employee saved = captor.getValue();
+        Employee saved = service.execute(ID, command);
 
         assertThat(saved.getId()).isEqualTo(ID);
         assertThat(saved.getCreatedAt()).isEqualTo(CREATED_AT);
@@ -62,13 +65,11 @@ class UpdateEmployeeServiceTest {
                 .usingRecursiveComparison()
                 .ignoringFields("jobTitle", "active")
                 .isEqualTo(currentEmployee());
-        assertThat(result).isSameAs(saved);
     }
 
     @Test
     void shouldReplaceEveryFieldWhenAllAreProvided() {
-        when(employeeRepository.findById(ID)).thenReturn(Optional.of(currentEmployee()));
-        when(employeeRepository.save(any(Employee.class))).thenAnswer(call -> call.getArgument(0));
+        givenCurrentEmployee();
         LocalDate birthDate = LocalDate.of(1990, 6, 1);
 
         UpdateEmployeeCommand command = new UpdateEmployeeCommand(
@@ -89,7 +90,7 @@ class UpdateEmployeeServiceTest {
 
     @Test
     void shouldReportNotFoundWithoutSaving() {
-        when(employeeRepository.findById(ID)).thenReturn(Optional.empty());
+        when(employeeRepository.update(eq(ID), any())).thenReturn(Optional.empty());
         UpdateEmployeeCommand command = new UpdateEmployeeCommand(
                 "Eva", null, null, null, null, null, null, null, null
         );
@@ -102,7 +103,7 @@ class UpdateEmployeeServiceTest {
 
     @Test
     void shouldRejectADeclaredAgeThatDoesNotMatchTheResultingBirthDate() {
-        when(employeeRepository.findById(ID)).thenReturn(Optional.of(currentEmployee()));
+        givenCurrentEmployee();
         UpdateEmployeeCommand command = new UpdateEmployeeCommand(
                 null, null, null, null, null, null, 1, null, null
         );

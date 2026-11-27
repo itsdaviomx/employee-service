@@ -4,6 +4,7 @@ import com.employee.employeeservice.application.exception.EmployeeNotFoundExcept
 import com.employee.employeeservice.application.exception.InvalidSearchTermException;
 import com.employee.employeeservice.domain.exception.InvalidEmployeeException;
 import com.employee.employeeservice.dto.ErrorResponse;
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
@@ -32,6 +33,12 @@ public class ApiExceptionHandler {
         return new ErrorResponse(EMPLOYEE_NOT_FOUND, exception.getMessage());
     }
 
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    @ResponseStatus(HttpStatus.CONFLICT)
+    public ErrorResponse concurrentModification() {
+        return new ErrorResponse("CONCURRENT_MODIFICATION", "Concurrent modification. Retry the request");
+    }
+
     @ExceptionHandler(InvalidEmployeeException.class)
     @ResponseStatus(HttpStatus.BAD_REQUEST)
     public ErrorResponse invalidEmployee(InvalidEmployeeException exception) {
@@ -51,6 +58,12 @@ public class ApiExceptionHandler {
                 MISSING_PARAMETER,
                 "Query parameter '" + exception.getParameterName() + "' is required"
         );
+    }
+
+    @ExceptionHandler(BatchBodyAdvice.PayloadTooLarge.class)
+    @ResponseStatus(HttpStatus.PAYLOAD_TOO_LARGE)
+    public ErrorResponse payloadTooLarge() {
+        return new ErrorResponse("PAYLOAD_TOO_LARGE", "Batch request body exceeds 1 MiB");
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)

@@ -12,9 +12,11 @@ public class UpdateEmployeeService {
     private final EmployeeRepository employeeRepository;
 
     public Employee execute(long id, UpdateEmployeeCommand command) {
-        Employee current = employeeRepository.findById(id)
+        return employeeRepository.update(id, current -> applyChanges(current, command))
                 .orElseThrow(() -> new EmployeeNotFoundException(id));
+    }
 
+    private Employee applyChanges(Employee current, UpdateEmployeeCommand command) {
         Employee updated = new Employee(
                 current.getId(),
                 valueOrCurrent(command.firstName(), current.getFirstName()),
@@ -32,7 +34,7 @@ public class UpdateEmployeeService {
             updated.validateDeclaredAge(command.declaredAge());
         }
 
-        return employeeRepository.save(updated);
+        return updated;
     }
 
     private static <T> T valueOrCurrent(T requested, T current) {

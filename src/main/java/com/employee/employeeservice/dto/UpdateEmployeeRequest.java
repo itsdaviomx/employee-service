@@ -1,24 +1,35 @@
 package com.employee.employeeservice.dto;
 
 import com.employee.employeeservice.application.port.in.UpdateEmployeeCommand;
-import com.fasterxml.jackson.annotation.JsonFormat;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
 import io.swagger.v3.oas.annotations.media.Schema;
+import org.hibernate.validator.constraints.CodePointLength;
 
 import javax.validation.constraints.PastOrPresent;
 import javax.validation.constraints.Pattern;
 import javax.validation.constraints.PositiveOrZero;
 import java.time.LocalDate;
 
+import static com.employee.employeeservice.dto.EmployeeFieldLimits.MAX_TEXT_LENGTH;
+
 public record UpdateEmployeeRequest(
 
         @Pattern(regexp = UpdateEmployeeRequest.NOT_BLANK, message = UpdateEmployeeRequest.BLANK_MESSAGE)
+        @CodePointLength(max = MAX_TEXT_LENGTH)
+        @Schema(maxLength = MAX_TEXT_LENGTH)
         String firstName,
 
+        @CodePointLength(max = MAX_TEXT_LENGTH)
+        @Schema(maxLength = MAX_TEXT_LENGTH)
         String middleName,
 
         @Pattern(regexp = UpdateEmployeeRequest.NOT_BLANK, message = UpdateEmployeeRequest.BLANK_MESSAGE)
+        @CodePointLength(max = MAX_TEXT_LENGTH)
+        @Schema(maxLength = MAX_TEXT_LENGTH)
         String paternalLastName,
 
+        @CodePointLength(max = MAX_TEXT_LENGTH)
+        @Schema(maxLength = MAX_TEXT_LENGTH)
         String maternalLastName,
 
         @Schema(description = "Optional; when sent it must match the resulting birth date")
@@ -26,14 +37,18 @@ public record UpdateEmployeeRequest(
         Integer age,
 
         @Pattern(regexp = UpdateEmployeeRequest.NOT_BLANK, message = UpdateEmployeeRequest.BLANK_MESSAGE)
+        @CodePointLength(max = MAX_TEXT_LENGTH)
+        @Schema(maxLength = MAX_TEXT_LENGTH)
         String sex,
 
         @PastOrPresent
-        @JsonFormat(pattern = ApiDateFormat.PATTERN)
+        @JsonDeserialize(using = BirthDateDeserializer.class)
         @Schema(type = "string", pattern = ApiDateFormat.REGEX, example = ApiDateFormat.EXAMPLE)
         LocalDate birthDate,
 
         @Pattern(regexp = UpdateEmployeeRequest.NOT_BLANK, message = UpdateEmployeeRequest.BLANK_MESSAGE)
+        @CodePointLength(max = MAX_TEXT_LENGTH)
+        @Schema(maxLength = MAX_TEXT_LENGTH)
         String jobTitle,
 
         Boolean active

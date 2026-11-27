@@ -13,6 +13,7 @@ import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.media.ArraySchema;
 import io.swagger.v3.oas.annotations.media.Content;
 import io.swagger.v3.oas.annotations.media.Schema;
 import io.swagger.v3.oas.annotations.responses.ApiResponse;
@@ -20,6 +21,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.dao.DataAccessException;
+import org.springframework.dao.DataAccessResourceFailureException;
+import org.springframework.dao.TransientDataAccessResourceException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.transaction.TransactionException;
@@ -34,6 +37,8 @@ import org.springframework.web.bind.annotation.RestController;
 
 import javax.validation.Valid;
 import javax.validation.Validator;
+import java.sql.SQLException;
+import java.sql.SQLTransientConnectionException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
@@ -54,23 +59,41 @@ public class EmployeeController {
     @Operation(
             summary = "Create one or more employees",
             description = "Each item is validated and saved on its own and the response reports every item by position. "
-                    + "Send a client-generated requestId per item to make retries safe."
+                    + "Send up to 100 items per request (1 MiB total). A requestId protects retries for 24 hours."
     )
     @ApiResponse(responseCode = "201", description = "Every employee was created")
     @ApiResponse(responseCode = "200", description = "Some items were not created; check each item's status")
-    @ApiResponse(responseCode = "400", description = "Empty list or unreadable body",
+    @ApiResponse(responseCode = "400", description = "Unreadable body or batch size outside the range of 1 to 100",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "413", description = "Request body exceeds 1 MiB",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "503", description = "Database unavailable for every item",
+            content = @Content(array = @ArraySchema(
+                    schema = @Schema(implementation = EmployeeCreationResult.class))))
     @PostMapping
     public ResponseEntity<List<EmployeeCreationResult>> create(
             @Valid @RequestBody CreateEmployeesRequest request
     ) {
         List<EmployeeCreationResult> results = new ArrayList<>();
 
+        int unavailable = 0;
         for (int index = 0; index < request.employees().size(); index++) {
             JsonNode item = request.employees().get(index);
-            results.add(createOne(index + 1, item));
+            int position = index + 1;
+            try {
+                results.add(createOne(position, item));
+            } catch (DataAccessException | TransactionException exception) {
+                log.error("Persistence failure for employee at batch position {}", position, exception);
+                if (isDatabaseUnavailable(exception)) {
+                    unavailable++;
+                }
+                results.add(EmployeeCreationResult.persistenceError(position));
+            }
         }
 
+        if (unavailable == results.size()) {
+            return ResponseEntity.status(HttpStatus.SERVICE_UNAVAILABLE).body(results);
+        }
         boolean allCreated = results.stream()
                 .allMatch(result -> result.status() == EmployeeCreationResult.Status.CREATED);
 
@@ -87,6 +110,8 @@ public class EmployeeController {
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "404", description = "Employee not found",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Concurrent modification; retry the request",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @PutMapping("/{id}")
     public EmployeeResponse update(
             @PathVariable("id") long id,
@@ -100,6 +125,8 @@ public class EmployeeController {
     @ApiResponse(responseCode = "400", description = "ID is not a number",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @ApiResponse(responseCode = "404", description = "Employee not found",
+            content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
+    @ApiResponse(responseCode = "409", description = "Concurrent modification; retry the request",
             content = @Content(schema = @Schema(implementation = ErrorResponse.class)))
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
@@ -141,9 +168,18 @@ public class EmployeeController {
             return EmployeeCreationResult.conflict(position, exception.getMessage());
         } catch (IllegalArgumentException exception) {
             return EmployeeCreationResult.invalid(position, exception.getMessage());
-        } catch (DataAccessException | TransactionException exception) {
-            log.error("Persistence failure for employee at batch position {}", position, exception);
-            return EmployeeCreationResult.persistenceError(position);
         }
+    }
+
+    private static boolean isDatabaseUnavailable(Throwable error) {
+        for (Throwable cause = error; cause != null; cause = cause.getCause()) {
+            if (cause instanceof DataAccessResourceFailureException
+                    || cause instanceof TransientDataAccessResourceException
+                    || cause instanceof SQLTransientConnectionException
+                    || cause instanceof SQLException sql && sql.getSQLState() != null && sql.getSQLState().startsWith("08")) {
+                return true;
+            }
+        }
+        return false;
     }
 }

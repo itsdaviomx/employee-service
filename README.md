@@ -29,9 +29,9 @@ Microservicio REST para gestionar empleados: alta individual o por lotes, consul
 | `GET` | `/employees` | Todos los empleados, activos e inactivos, ordenados por ID | `READER` o `ADMIN` | `200` |
 | `GET` | `/employees/{id}` | Detalle de un empleado | `READER` o `ADMIN` | `200`, `400`, `404` |
 | `GET` | `/employees/search?name={name}` | Búsqueda parcial en cualquiera de los cuatro campos de nombre, sin distinguir mayúsculas | `READER` o `ADMIN` | `200`, `400` |
-| `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400` |
-| `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404` |
-| `DELETE` | `/employees/{id}` | Elimina un empleado | `ADMIN` | `204`, `400`, `404` |
+| `POST` | `/employees` | Alta de uno o varios empleados en una misma petición | `ADMIN` | `201`, `200`, `400`, `413`, `503` |
+| `PUT` | `/employees/{id}` | Actualiza todos o algunos campos | `ADMIN` | `200`, `400`, `404`, `409` |
+| `DELETE` | `/employees/{id}` | Elimina un empleado | `ADMIN` | `204`, `400`, `404`, `409` |
 
 Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/readiness` (públicos), Swagger UI en `/swagger-ui.html` y el contrato OpenAPI en `/v3/api-docs`.
 
@@ -50,6 +50,8 @@ Además: `/actuator/health`, `/actuator/health/liveness` y `/actuator/health/rea
 | `jobTitle` | texto | Obligatorio |
 | `createdAt` | fecha y hora ISO-8601 | Automático al dar de alta; no se modifica |
 | `active` | booleano | Obligatorio en el alta |
+
+Los seis campos de texto admiten hasta 255 caracteres Unicode cada uno. Una fecha imposible, por ejemplo `29-02-2023`, se rechaza; `29-02-2024` sí es válida. En un alta por lote el error corresponde solo a ese elemento.
 
 ## Arquitectura
 
@@ -138,6 +140,8 @@ GRANT ALL PRIVILEGES ON employee_service.* TO 'employee_app'@'localhost';
 cat src/main/resources/db/mysql/*.sql | mysql -h 127.0.0.1 -u employee_app -p employee_service
 ```
 
+En bases creadas con la versión anterior, la purga funciona con la tabla existente. Para indexar el vencimiento en esas instalaciones, comprueba si existe `ix_receipts_created_at` con `SHOW INDEX FROM employee_creation_receipts`. Si falta, añádelo una vez con `CREATE INDEX ix_receipts_created_at ON employee_creation_receipts (created_at)`.
+
 **3. Completa el `.env`** con `DB_PASSWORD`, `API_ADMIN_PASSWORD` y `API_READER_PASSWORD`.
 
 **4. Compila, prueba y arranca:**
@@ -160,7 +164,7 @@ docker compose up --build -d
 Compose levanta dos contenedores:
 
 - **MySQL 8.4:** crea el usuario `employee_app` y las dos tablas en el primer arranque, con una contraseña de `root` aleatoria. No publica su puerto.
-- **El servicio:** se construye con un `Dockerfile` multi-stage, corre con un usuario sin privilegios y espera a que MySQL esté sano.
+- **El servicio:** se construye con un `Dockerfile` multi-stage, corre con un usuario sin privilegios y espera a que MySQL esté sano. Publica el puerto HTTP en `127.0.0.1` para la evaluación local. El acceso desde otra máquina requiere un proxy que termine TLS antes de reenviar las credenciales Basic.
 
 Usa los valores de tu `.env`.
 
@@ -192,13 +196,15 @@ curl -i -u "$API_ADMIN_USER:$API_ADMIN_PASSWORD" -H 'Content-Type: application/j
   http://localhost:8080/employees
 ```
 
-Cada elemento se valida y se guarda por separado. La respuesta informa el resultado de cada uno, en el orden en que llegaron:
+Se admiten de 1 a 100 empleados y hasta 1 MiB (1 048 576 bytes) de JSON por petición. Un lote mayor se rechaza completo antes de procesar empleados. Dentro de esos límites, cada elemento se valida y se guarda por separado. La respuesta informa el resultado de cada uno, en el orden en que llegaron:
 
 - **Estados posibles de cada elemento:** `CREATED`, `REPLAYED`, `CONFLICT`, `INVALID` o `PERSISTENCE_ERROR`.
-- **Código HTTP:** `201` si todos se crearon; `200` si alguno no.
-- **`requestId` (opcional):** hace seguro reintentar.
+- **Código HTTP:** `201` cuando se crean todos. Si la conexión a la base falla para todos, se devuelve `503` con el resultado de cada posición. Los demás lotes procesados devuelven `200`, incluidos los mixtos y las repeticiones.
+- **`requestId` (opcional):** protege los reintentos durante 24 horas desde el alta confirmada.
   - el mismo `requestId` con los mismos datos devuelve `REPLAYED` con el empleado original y no crea un duplicado;
-  - con datos distintos, devuelve `CONFLICT`.
+  - con datos distintos dentro de la ventana, devuelve `CONFLICT`.
+  - si se elimina el empleado, un reintento idéntico dentro de la ventana devuelve la respuesta original y el empleado sigue eliminado. Al vencer las 24 horas, la clave vuelve a estar disponible. Reenviar el alta puede crear otro ID, incluso si el anterior sigue existiendo.
+  - el servicio elimina los recibos vencidos al iniciar y luego cada hora, en bloques de 500. La caducidad de la clave se comprueba también al recibir el reintento, aunque la purga física siga pendiente.
 
 Los ejemplos siguientes usan el `id` del primer empleado de esa respuesta. Guárdalo en la terminal; por ejemplo, si la respuesta trae `"id":27`:
 
@@ -241,7 +247,7 @@ Todos los errores tienen el mismo formato:
 
 | HTTP | `error` | Cuándo |
 |---|---|---|
-| `400` | `VALIDATION_FAILED` | Un campo no cumple sus reglas, o el lote viene vacío |
+| `400` | `VALIDATION_FAILED` | Un campo no cumple sus reglas, o la cantidad de empleados está fuera del intervalo de 1 a 100 |
 | `400` | `MALFORMED_REQUEST` | JSON ilegible o fecha que no usa `dd-MM-yyyy` |
 | `400` | `INVALID_EMPLOYEE` | Regla de dominio, como una edad que no coincide con la fecha de nacimiento |
 | `400` | `INVALID_PARAMETER` | ID no numérico |
@@ -249,6 +255,8 @@ Todos los errores tienen el mismo formato:
 | `401` | `UNAUTHORIZED` | Sin credenciales o con credenciales incorrectas |
 | `403` | `FORBIDDEN` | El rol no permite la operación |
 | `404` | `EMPLOYEE_NOT_FOUND` | El ID no existe |
+| `409` | `CONCURRENT_MODIFICATION` | Conflicto de bloqueo al actualizar o borrar. La petición se puede reintentar |
+| `413` | `PAYLOAD_TOO_LARGE` | El cuerpo del alta supera 1 MiB |
 
 En el alta por lotes, los errores de cada elemento van dentro de su resultado y no detienen a los demás.
 
@@ -257,7 +265,7 @@ En el alta por lotes, los errores de cada elemento van dentro de su resultado y 
 - **Swagger UI:** http://localhost:8080/swagger-ui.html. El botón **Authorize** acepta las credenciales de HTTP Basic.
 - **Contrato OpenAPI 3:** http://localhost:8080/v3/api-docs.
 - **Colección de Postman:** [docs/postman/employee-service.postman_collection.json](docs/postman/employee-service.postman_collection.json).
-  - **Contenido:** 25 peticiones con 55 aserciones, en 6 carpetas que se ejecutan en orden: health, alta, consulta, actualización, seguridad y limpieza. La última carpeta borra lo que crea la corrida.
+  - **Contenido:** 25 peticiones con 55 aserciones, en 6 carpetas que se ejecutan en orden: health, alta, consulta, actualización, seguridad y limpieza. La última carpeta elimina los empleados creados por esa corrida y comprueba los casos de ID ausente con un ID recién eliminado.
   - **Contraseñas:** captúralas en *Current value* de las variables `adminPassword` y `readerPassword`; la colección no las guarda.
   - **Ejecución desde la terminal:**
 
@@ -272,13 +280,13 @@ npx newman@6.2.1 run docs/postman/employee-service.postman_collection.json \
 mvn -B verify
 ```
 
-Son **83 pruebas** con JUnit 5:
+Son **101 pruebas** con JUnit 5:
 
 | Tipo | Pruebas | Qué cubren | Necesita MySQL |
 |---|---|---|---|
-| Unitarias (JUnit 5 y Mockito) | 35 | Reglas del dominio, cada caso de uso con el puerto simulado, el filtro de logging y la configuración de usuarios | No |
-| Web (`@WebMvcTest`) | 21 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
-| Integración (`@SpringBootTest`, `@DataJpaTest`) | 27 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
+| Unitarias (JUnit 5 y Mockito) | 37 | Reglas del dominio, cada caso de uso con el puerto simulado, el filtro de logging, la caducidad de los recibos, su purga por lotes y la configuración de usuarios | No |
+| Web (`@WebMvcTest`) | 35 | Contrato HTTP de cada endpoint, códigos de estado, validaciones, errores y reglas de seguridad | No |
+| Integración (`@SpringBootTest`, `@DataJpaTest`) | 29 | Flujo completo contra MySQL: alta parcial e idempotente (también con peticiones simultáneas), búsqueda, actualización, baja, mapeo JPA, OpenAPI, health checks y HTTP Basic real | Sí |
 
 Las pruebas de integración usan una marca única en `jobTitle` y borran sus datos al terminar, así que pueden correr contra la base de desarrollo. En CI corren contra un MySQL desechable con `JPA_DDL_AUTO=validate`.
 
@@ -311,7 +319,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
 - **CSRF desactivado a propósito:** no hay cookie de sesión de la que un sitio externo pueda aprovecharse.
 - **Respuestas:** cabeceras de seguridad (`X-Content-Type-Options`, `X-Frame-Options`, `Cache-Control: no-store`), y `401`/`403` en el mismo formato JSON que los demás errores.
 - **Logs:**
-  - `Authorization`, `Cookie` y `X-Api-Key` se registran como `***`;
+  - los únicos valores registrados son `Accept`, `Content-Type` y el identificador de correlación validado. Para las demás cabeceras se registra el nombre con `***`;
   - los saltos de línea se neutralizan para evitar inyección en logs;
   - no se registran el query string ni el cuerpo, porque pueden traer datos personales.
 - **Errores:** los mensajes no exponen detalles internos (clases de Jackson, valores rechazados ni trazas).
@@ -345,9 +353,9 @@ git log --oneline --graph --first-parent develop
 ## Decisiones y limitaciones
 
 - **La edad no se guarda:** se calcula desde `birthDate`. Guardarla la dejaría desactualizada cada año.
-- **Alta por lotes con resultado por elemento:** un elemento inválido no rechaza a los demás. El `requestId` hace seguros los reintentos, incluso con peticiones simultáneas.
+- **Alta por lotes con resultado por elemento:** un elemento inválido no rechaza a los demás. El `requestId` protege los reintentos durante 24 horas, incluso con peticiones simultáneas.
 - **`PUT` parcial:** el enunciado pide actualizar "todos o algunos" campos con `PUT`. Como `null` significa "conservar", el segundo nombre y el apellido materno no se pueden borrar. En una API propia usaría `PATCH` con JSON Merge Patch (RFC 7396).
-- **Sin bloqueo optimista:** si dos actualizaciones llegan al mismo empleado a la vez, gana la última. El siguiente paso sería `@Version` con respuesta `409`.
+- **Actualizaciones concurrentes:** cada `PUT` bloquea la fila por ID en MySQL, lee sus valores vigentes y aplica el cambio en la misma transacción. Dos peticiones que tocan campos distintos conservan ambos cambios. Para un mismo campo prevalece la última escritura completada. Un conflicto de bloqueo devuelve `409`.
 - **Spring Boot 2.7 sin soporte:** la versión la pide el enunciado. Por eso el escaneo de Trivy solo reporta: una migración a Spring Boot 3 permitiría hacerlo bloqueante.
 - **Siguiente paso de seguridad:** OAuth2 Resource Server con JWT de un proveedor de identidad, para que el servicio no guarde contraseñas. HTTP Basic solo es aceptable detrás de HTTPS.
 - **Siguiente paso del esquema:** migraciones con Flyway, partiendo de los scripts ya versionados.

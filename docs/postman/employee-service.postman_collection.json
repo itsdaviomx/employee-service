@@ -61,8 +61,10 @@
               "script": {
                 "type": "text/javascript",
                 "exec": [
+                  "// Only IDs captured in this run may be used by later requests.",
+                  "['employeeId', 'secondEmployeeId', 'partialEmployeeId', 'deletedEmployeeId'].forEach(key => pm.variables.set(key, 'unset'));",
                   "// A new idempotency key per run; the next request reuses it.",
-                  "pm.collectionVariables.set('requestId', pm.variables.replaceIn('{{$guid}}'));"
+                  "pm.variables.set('requestId', pm.variables.replaceIn('{{$guid}}'));"
                 ]
               }
             },
@@ -76,8 +78,8 @@
                   "pm.test('Both items are CREATED', () => pm.expect(results.map(r => r.status)).to.eql(['CREATED', 'CREATED']));",
                   "pm.test('Results keep the batch position', () => pm.expect(results.map(r => r.position)).to.eql([1, 2]));",
                   "pm.test('Birth date uses dd-MM-yyyy', () => pm.expect(results[0].employee.birthDate).to.eql('14-03-1995'));",
-                  "pm.collectionVariables.set('employeeId', results[0].employee.id);",
-                  "pm.collectionVariables.set('secondEmployeeId', results[1].employee.id);"
+                  "if (results[0].status === 'CREATED' && Number.isSafeInteger(results[0].employee.id)) pm.variables.set('employeeId', results[0].employee.id);",
+                  "if (results[1].status === 'CREATED' && Number.isSafeInteger(results[1].employee.id)) pm.variables.set('secondEmployeeId', results[1].employee.id);"
                 ]
               }
             }
@@ -114,7 +116,7 @@
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const result = pm.response.json()[0];",
                   "pm.test('Item is REPLAYED', () => pm.expect(result.status).to.eql('REPLAYED'));",
-                  "pm.test('No duplicate: same employee ID', () => pm.expect(result.employee.id).to.eql(pm.collectionVariables.get('employeeId')));"
+                  "pm.test('No duplicate: same employee ID', () => pm.expect(result.employee.id).to.eql(pm.variables.get('employeeId')));"
                 ]
               }
             }
@@ -152,7 +154,7 @@
                   "const results = pm.response.json();",
                   "pm.test('Valid item is created, invalid one is reported', () => pm.expect(results.map(r => r.status)).to.eql(['CREATED', 'INVALID']));",
                   "pm.test('Invalid item explains why', () => pm.expect(results[1].error).to.include('Age must match'));",
-                  "pm.collectionVariables.set('partialEmployeeId', results[0].employee.id);"
+                  "if (results[0].status === 'CREATED' && Number.isSafeInteger(results[0].employee.id)) pm.variables.set('partialEmployeeId', results[0].employee.id);"
                 ]
               }
             }
@@ -228,8 +230,8 @@
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const ids = pm.response.json().map(e => e.id);",
                   "pm.test('Includes active and inactive employees', () => {",
-                  "    pm.expect(ids).to.include(pm.collectionVariables.get('employeeId'));",
-                  "    pm.expect(ids).to.include(pm.collectionVariables.get('secondEmployeeId'));",
+                  "    pm.expect(ids).to.include(pm.variables.get('employeeId'));",
+                  "    pm.expect(ids).to.include(pm.variables.get('secondEmployeeId'));",
                   "});"
                 ]
               }
@@ -251,7 +253,7 @@
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const employee = pm.response.json();",
-                  "pm.test('Returns the requested employee', () => pm.expect(employee.id).to.eql(pm.collectionVariables.get('employeeId')));",
+                  "pm.test('Returns the requested employee', () => pm.expect(employee.id).to.eql(pm.variables.get('employeeId')));",
                   "pm.test('Age is calculated', () => pm.expect(employee.age).to.be.a('number'));",
                   "pm.test('Birth date uses dd-MM-yyyy', () => pm.expect(employee.birthDate).to.match(/^\\d{2}-\\d{2}-\\d{4}$/));"
                 ]
@@ -262,26 +264,6 @@
             "method": "GET",
             "header": [],
             "url": "{{baseUrl}}/employees/{{employeeId}}"
-          }
-        },
-        {
-          "name": "Get unknown ID",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
-                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "GET",
-            "header": [],
-            "url": "{{baseUrl}}/employees/999999999"
           }
         },
         {
@@ -314,7 +296,7 @@
                 "exec": [
                   "pm.test('Status is 200', () => pm.response.to.have.status(200));",
                   "const ids = pm.response.json().map(e => e.id);",
-                  "pm.test('Case-insensitive partial match', () => pm.expect(ids).to.include(pm.collectionVariables.get('employeeId')));"
+                  "pm.test('Case-insensitive partial match', () => pm.expect(ids).to.include(pm.variables.get('employeeId')));"
                 ]
               }
             }
@@ -511,40 +493,6 @@
               }
             }
           }
-        },
-        {
-          "name": "Update unknown ID",
-          "event": [
-            {
-              "listen": "test",
-              "script": {
-                "type": "text/javascript",
-                "exec": [
-                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
-                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
-                ]
-              }
-            }
-          ],
-          "request": {
-            "method": "PUT",
-            "header": [
-              {
-                "key": "Content-Type",
-                "value": "application/json"
-              }
-            ],
-            "url": "{{baseUrl}}/employees/999999999",
-            "body": {
-              "mode": "raw",
-              "raw": "{\n  \"jobTitle\": \"Architect\"\n}",
-              "options": {
-                "raw": {
-                  "language": "json"
-                }
-              }
-            }
-          }
         }
       ]
     },
@@ -694,7 +642,10 @@
                 "type": "text/javascript",
                 "exec": [
                   "pm.test('Status is 204', () => pm.response.to.have.status(204));",
-                  "pm.test('No body', () => pm.expect(pm.response.text()).to.eql(''));"
+                  "pm.test('No body', () => pm.expect(pm.response.text()).to.eql(''));",
+                  "if (pm.response.code === 204) {",
+                  "    pm.variables.set('deletedEmployeeId', pm.variables.get('employeeId'));",
+                  "}"
                 ]
               }
             }
@@ -703,6 +654,62 @@
             "method": "DELETE",
             "header": [],
             "url": "{{baseUrl}}/employees/{{employeeId}}"
+          }
+        },
+        {
+          "name": "Get unknown ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": "{{baseUrl}}/employees/{{deletedEmployeeId}}",
+            "description": "Uses the ID created and then deleted by this collection run."
+          }
+        },
+        {
+          "name": "Update unknown ID",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "pm.test('Error code is EMPLOYEE_NOT_FOUND', () => pm.expect(pm.response.json().error).to.eql('EMPLOYEE_NOT_FOUND'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": "{{baseUrl}}/employees/{{deletedEmployeeId}}",
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jobTitle\": \"Architect\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Uses the ID created and then deleted by this collection run."
           }
         },
         {
@@ -785,22 +792,6 @@
     },
     {
       "key": "readerPassword",
-      "value": ""
-    },
-    {
-      "key": "requestId",
-      "value": ""
-    },
-    {
-      "key": "employeeId",
-      "value": ""
-    },
-    {
-      "key": "secondEmployeeId",
-      "value": ""
-    },
-    {
-      "key": "partialEmployeeId",
       "value": ""
     }
   ]
