@@ -167,7 +167,7 @@ En bases creadas con la versión anterior, la purga funciona con la tabla existe
 mvn -B verify
 ```
 ```bash
-java -jar target/employee-service-1.0.0.jar
+java -jar target/employee-service-1.0.1.jar
 ```
 
 El servicio queda en `http://localhost:8080`. Desde IntelliJ también se puede ejecutar `EmployeeServiceApplication`, que lee el mismo `.env`.
@@ -352,11 +352,11 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
   - imagen final solo con el JRE y el jar, con un usuario sin privilegios;
   - MySQL sin puerto publicado;
   - la aplicación usa un usuario de base de datos con acceso a un solo esquema.
-- **Pipeline:** permisos mínimos (`contents: read`) y escaneo de la imagen con Trivy.
+- **Pipeline:** permisos mínimos (`contents: read`) y escaneo de la imagen con Trivy. La acción de Trivy está fijada al SHA de un commit verificado, porque una etiqueta se puede mover o borrar.
 
 ## CI/CD
 
-[`.github/workflows/ci.yml`](.github/workflows/ci.yml) se ejecuta en cada push a `main`, `develop` y `feature/**`, y en cada pull request hacia `main` y `develop`:
+[`.github/workflows/ci.yml`](.github/workflows/ci.yml) se ejecuta en cada push a `main`, `develop`, `feature/**`, `release/**` y `hotfix/**`, y en cada pull request hacia `main` y `develop`:
 
 1. **`build-test`:**
    - levanta un MySQL 8.4 desechable y crea el esquema con los scripts versionados;
@@ -366,7 +366,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
 
 ## Git Flow
 
-- **Ramas:** `main` (releases), `develop` (integración) y una rama `feature/*` por funcionalidad, integrada con `git merge --no-ff`.
+- **Ramas:** `main` (releases, con una etiqueta `vX.Y.Z` por versión), `develop` (integración), una rama `feature/*` por funcionalidad, y `release/*` y `hotfix/*` para preparar o corregir una versión. Todas se integran con `git merge --no-ff`.
 - **Commits atómicos:** cada uno agrupa un solo cambio, con [Conventional Commits](https://www.conventionalcommits.org/) (`feat`, `refactor`, `build`, `ci`, `docs`, `chore`).
 
 ```bash
