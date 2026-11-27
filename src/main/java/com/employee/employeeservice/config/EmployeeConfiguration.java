@@ -2,6 +2,7 @@ package com.employee.employeeservice.config;
 
 import com.employee.employeeservice.application.port.out.EmployeeRepository;
 import com.employee.employeeservice.application.service.CreateEmployeeService;
+import com.employee.employeeservice.application.service.DeleteEmployeeService;
 import com.employee.employeeservice.application.service.GetEmployeeService;
 import com.employee.employeeservice.application.service.ListEmployeesService;
 import com.employee.employeeservice.application.service.SearchEmployeesService;
@@ -10,6 +11,11 @@ import org.springframework.context.annotation.Configuration;
 
 @Configuration(proxyBeanMethods = false)
 public class EmployeeConfiguration {
+
+    @Bean
+    public DeleteEmployeeService deleteEmployeeService(EmployeeRepository employeeRepository) {
+        return new DeleteEmployeeService(employeeRepository);
+    }
 
     @Bean
     public SearchEmployeesService searchEmployeesService(EmployeeRepository employeeRepository) {
