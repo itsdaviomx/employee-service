@@ -22,7 +22,7 @@ public class SearchEmployeesService {
                 .filter(Predicate.not(String::isEmpty))
                 .orElseThrow(() -> new InvalidSearchTermException("Search name must not be blank"));
 
-        if (term.length() > MAX_NAME_LENGTH) {
+        if (term.codePointCount(0, term.length()) > MAX_NAME_LENGTH) {
             throw new InvalidSearchTermException(
                     "Search name must have at most " + MAX_NAME_LENGTH + " characters"
             );
