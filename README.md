@@ -167,7 +167,7 @@ En bases creadas con la versión anterior, la purga funciona con la tabla existe
 mvn -B verify
 ```
 ```bash
-java -jar target/employee-service-1.0.0.jar
+java -jar target/employee-service-1.0.1.jar
 ```
 
 El servicio queda en `http://localhost:8080`. Desde IntelliJ también se puede ejecutar `EmployeeServiceApplication`, que lee el mismo `.env`.
