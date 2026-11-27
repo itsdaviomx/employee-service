@@ -1,5 +1,6 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.WithAdminUser;
 import com.employee.employeeservice.application.exception.InvalidSearchTermException;
 import com.employee.employeeservice.application.service.GetEmployeeService;
 import com.employee.employeeservice.application.service.ListEmployeesService;
@@ -23,6 +24,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(EmployeeQueryController.class)
+@WithAdminUser
 class EmployeeSearchWebTest {
 
     @Autowired

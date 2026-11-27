@@ -1,5 +1,6 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.WithAdminUser;
 import com.employee.employeeservice.application.exception.EmployeeNotFoundException;
 import com.employee.employeeservice.application.service.DeleteEmployeeService;
 import com.employee.employeeservice.application.service.UpdateEmployeeService;
@@ -18,6 +19,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest(EmployeeController.class)
+@WithAdminUser
 class EmployeeDeleteWebTest {
 
     @Autowired

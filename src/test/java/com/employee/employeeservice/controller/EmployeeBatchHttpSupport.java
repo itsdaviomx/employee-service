@@ -1,5 +1,6 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.WithAdminUser;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ObjectNode;
@@ -17,6 +18,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 @SpringBootTest
 @AutoConfigureMockMvc
+@WithAdminUser
 abstract class EmployeeBatchHttpSupport {
 
     @Autowired MockMvc mvc;

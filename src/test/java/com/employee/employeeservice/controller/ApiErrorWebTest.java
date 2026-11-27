@@ -1,5 +1,6 @@
 package com.employee.employeeservice.controller;
 
+import com.employee.employeeservice.WithAdminUser;
 import com.employee.employeeservice.application.service.DeleteEmployeeService;
 import com.employee.employeeservice.application.service.GetEmployeeService;
 import com.employee.employeeservice.application.service.ListEmployeesService;
@@ -20,6 +21,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 @WebMvcTest({EmployeeController.class, EmployeeQueryController.class})
+@WithAdminUser
 class ApiErrorWebTest {
 
     @Autowired

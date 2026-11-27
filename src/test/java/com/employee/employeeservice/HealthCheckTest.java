@@ -36,7 +36,9 @@ class HealthCheckTest {
                 .andExpect(jsonPath("$.status").value("UP"));
     }
 
+    // Authenticated on purpose: the endpoints must be missing (404), not just protected (401).
     @Test
+    @WithAdminUser
     void shouldNotExposeOtherActuatorEndpoints() throws Exception {
         mvc.perform(get("/actuator/env")).andExpect(status().isNotFound());
         mvc.perform(get("/actuator/beans")).andExpect(status().isNotFound());
