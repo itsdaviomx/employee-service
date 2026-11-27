@@ -1,0 +1,41 @@
+# Runs the service with its own MySQL 8.4. Values come from the .env file next to this one.
+# docker compose up --build
+services:
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_DATABASE: ${DB_NAME:-employee_service}
+      MYSQL_USER: ${DB_USER:-employee_app}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      # Nobody needs the root password: the app uses its own user with access to one schema.
+      MYSQL_RANDOM_ROOT_PASSWORD: "yes"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Runs once, on the first start with an empty volume: creates the idempotency receipts table.
+      - ./src/main/resources/db/mysql:/docker-entrypoint-initdb.d:ro
+    # No published port: MySQL is reachable only from the app container.
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "--silent"]
+      interval: 5s
+      timeout: 3s
+      retries: 30
+
+  app:
+    build: .
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      DB_HOST: mysql
+      DB_PORT: "3306"
+      DB_NAME: ${DB_NAME:-employee_service}
+      DB_USER: ${DB_USER:-employee_app}
+      DB_PASSWORD: ${DB_PASSWORD:?Set DB_PASSWORD in .env}
+      JPA_DDL_AUTO: ${JPA_DDL_AUTO:-update}
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      API_DOCS_ENABLED: ${API_DOCS_ENABLED:-true}
+    ports:
+      - "${APP_PORT:-8080}:8080"
+
+volumes:
+  mysql-data:
