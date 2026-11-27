@@ -11,7 +11,7 @@ services:
       MYSQL_RANDOM_ROOT_PASSWORD: "yes"
     volumes:
       - mysql-data:/var/lib/mysql
-      # Runs once, on the first start with an empty volume: creates the idempotency receipts table.
+      # Runs once, on the first start with an empty volume: creates the employees and receipts tables.
       - ./src/main/resources/db/mysql:/docker-entrypoint-initdb.d:ro
     # No published port: MySQL is reachable only from the app container.
     healthcheck:
