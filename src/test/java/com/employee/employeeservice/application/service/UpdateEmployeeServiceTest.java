@@ -115,6 +115,24 @@ class UpdateEmployeeServiceTest {
         verify(employeeRepository, never()).save(any());
     }
 
+    @Test
+    void canReadAndRepairAnIncompleteLegacyEmployee() {
+        Employee legacy = Employee.restore(ID, null, null, "Ruiz", null, "F", LocalDate.of(1995, 3, 14),
+                "Engineer", CREATED_AT, true);
+        when(employeeRepository.update(eq(ID), any())).thenAnswer(call -> {
+            UnaryOperator<Employee> change = call.getArgument(1);
+            return Optional.of(change.apply(legacy));
+        });
+        assertThat(legacy.getFirstName()).isNull();
+        assertThatThrownBy(() -> service.execute(ID, new UpdateEmployeeCommand(
+                null, null, null, null, null, null, null, null, false)))
+                .isInstanceOf(InvalidEmployeeException.class);
+        Employee repaired = service.execute(ID, new UpdateEmployeeCommand(
+                "Ana", null, null, null, null, null, null, null, false));
+        assertThat(repaired.getFirstName()).isEqualTo("Ana");
+        assertThat(repaired.getCreatedAt()).isEqualTo(CREATED_AT);
+    }
+
     private static Employee currentEmployee() {
         return new Employee(
                 ID, "Ana", "Maria", "Garcia", "Lopez", "F",

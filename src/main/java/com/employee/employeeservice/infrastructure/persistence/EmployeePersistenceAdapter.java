@@ -87,7 +87,7 @@ public class EmployeePersistenceAdapter implements EmployeeRepository {
     }
 
     private Employee toDomain(EmployeeEntity entity) {
-        return new Employee(
+        return Employee.restore(
                 entity.getId(),
                 entity.getFirstName(),
                 entity.getMiddleName(),

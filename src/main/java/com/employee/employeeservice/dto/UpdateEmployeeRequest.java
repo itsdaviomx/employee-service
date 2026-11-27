@@ -12,7 +12,7 @@ import javax.validation.constraints.Pattern;
 import javax.validation.constraints.PositiveOrZero;
 import java.time.LocalDate;
 
-import static com.employee.employeeservice.dto.EmployeeFieldLimits.MAX_TEXT_LENGTH;
+import static com.employee.employeeservice.domain.model.Employee.MAX_TEXT_LENGTH;
 
 public record UpdateEmployeeRequest(
 
