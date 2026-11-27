@@ -104,8 +104,9 @@ jobs:
       # Report only: Spring Boot 2.7 (required by the exercise) is end-of-life and has known CVEs,
       # so a blocking scan would keep the pipeline red. A real project would set exit-code to 1
       # and upgrade to Spring Boot 3.
+      # Pinned to a commit SHA: a tag can be moved or deleted, a commit cannot.
       - name: Scan the image with Trivy
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
         with:
           image-ref: employee-service:${{ github.sha }}
           severity: CRITICAL,HIGH

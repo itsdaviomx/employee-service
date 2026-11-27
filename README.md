@@ -352,7 +352,7 @@ Las pruebas de integración usan una marca única en `jobTitle` y borran sus dat
   - imagen final solo con el JRE y el jar, con un usuario sin privilegios;
   - MySQL sin puerto publicado;
   - la aplicación usa un usuario de base de datos con acceso a un solo esquema.
-- **Pipeline:** permisos mínimos (`contents: read`) y escaneo de la imagen con Trivy.
+- **Pipeline:** permisos mínimos (`contents: read`) y escaneo de la imagen con Trivy. La acción de Trivy está fijada al SHA de un commit verificado, porque una etiqueta se puede mover o borrar.
 
 ## CI/CD
 
